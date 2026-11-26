@@ -51,6 +51,8 @@ export interface Advice {
   findings: Finding[];
   gaps: string[];
   costUsd: number; // Telegraph spend for this run
+  /** Every Telegraph answer bought that did not become a finding, used or rejected, kept as evidence. */
+  checks?: Evidence[] | undefined;
 }
 
 /** A short horizon call that settles from Steady's own mainnet reads. */
