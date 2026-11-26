@@ -4,7 +4,7 @@ id: 7420317
 slug: steady-liquidity
 protocol: generic
 name: Steady Solana Pool Liquidity
-base_url: https://miner.steady.jdollar.site
+base_url: https://steady-miner-production.up.railway.app
 description: >
   Total liquidity in US dollars of a Solana DEX pool, computed from the pool's
   own token vaults. Reads Orca Whirlpool, Raydium (AMM v4, CLMM, CPMM) and

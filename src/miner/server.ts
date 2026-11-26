@@ -107,6 +107,13 @@ export function createMinerServer(deps: MinerDeps): Server {
       const url = new URL(req.url ?? "/", "http://localhost");
       if (req.method !== "GET") return send({ status: 405, body: { error: "method_not_allowed", reason: "GET only" } });
       if (url.pathname === "/health") return send({ status: 200, body: { status: "ok", service: "steady-liquidity-miner" } });
+      if (url.pathname === "/steady-liquidity.yaml") {
+        // Serve the exact bytes committed in the repo; the registry stores their SHA-256.
+        const { readFile } = await import("node:fs/promises");
+        const bytes = await readFile(new URL("../../miner/steady-liquidity.yaml", import.meta.url));
+        res.writeHead(200, { "content-type": "text/yaml; charset=utf-8" });
+        return void res.end(bytes);
+      }
       if (url.pathname === "/liquidity") return send(await handle(url.searchParams.get("pool"), url.searchParams.get("chain")));
       send({ status: 404, body: { error: "not_found", reason: "routes: GET /liquidity?pool=&chain=solana, GET /health" } });
     } catch (e) {
