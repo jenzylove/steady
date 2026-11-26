@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import type { AdapterContext } from "../engine/types.js";
 import { Ledger } from "./store.js";
 import { settleDue } from "./settle.js";
-import { askFrontier, hasFrontierKey } from "./frontier.js";
+import { askFrontier, askFrontierInformed, hasFrontierKey } from "./frontier.js";
 import { makeAll } from "./make.js";
 import { anchorPending } from "./anchor.js";
 
@@ -23,8 +23,14 @@ export async function fillFrontier(ledger: Ledger, ctx: AdapterContext): Promise
   if (!hasFrontierKey()) return 0;
   let n = 0;
   for (const e of ledger.load()) {
-    if (e.settlement || e.prediction.frontier) continue;
-    try { await ledger.update(e.prediction.id, { frontier: await askFrontier(e.prediction, ctx.now()) }); n++; }
+    if (e.settlement) continue;
+    if (e.prediction.frontier && e.prediction.frontierInformed) continue;
+    try {
+      const patch: Partial<typeof e.prediction> = {};
+      if (!e.prediction.frontier) patch.frontier = await askFrontier(e.prediction, ctx.now());
+      if (!e.prediction.frontierInformed) patch.frontierInformed = await askFrontierInformed(e.prediction);
+      await ledger.update(e.prediction.id, patch); n++;
+    }
     catch (err) { log("frontier failed", e.prediction.id, String(err).slice(0, 120)); break; }
   }
   return n;

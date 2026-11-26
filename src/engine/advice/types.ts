@@ -69,6 +69,8 @@ export interface Prediction {
   settleAt: string; // ISO
   steady: { verdict: boolean; value: number; why: string };
   frontier?: { model: string; verdict: boolean; value?: number | undefined; why: string } | undefined;
+  /** Second control: the same model given the same numbers Steady read at call time (not Steady's verdict or history). */
+  frontierInformed?: { model: string; verdict: boolean; value?: number | undefined; why: string } | undefined;
   outcome?: { verdict: boolean; value: number; settledAt: string; source: Source } | undefined;
   usdAtStake?: number | undefined;
 }

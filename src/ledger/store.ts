@@ -20,7 +20,7 @@ export interface SettlementBody {
   predictionDigest: string; // digest of the signed prediction memo this settles
   settledAt: string;
   outcome: Outcome;
-  score: { steady: Score; frontier?: Score | undefined };
+  score: { steady: Score; frontier?: Score | undefined; frontierInformed?: Score | undefined };
 }
 
 export type LedgerLine =

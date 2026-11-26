@@ -45,7 +45,11 @@ export function scoreOne(record: { verdict: boolean; value?: number | undefined 
 }
 
 export function scoreBoth(p: Prediction, outcome: Outcome): SettlementBody["score"] {
-  return { steady: scoreOne(p.steady, outcome), ...(p.frontier ? { frontier: scoreOne(p.frontier, outcome) } : {}) };
+  return {
+    steady: scoreOne(p.steady, outcome),
+    ...(p.frontier ? { frontier: scoreOne(p.frontier, outcome) } : {}),
+    ...(p.frontierInformed ? { frontierInformed: scoreOne(p.frontierInformed, outcome) } : {}),
+  };
 }
 
 /** Largest health value stored; a loan with no debt left has infinite health. */

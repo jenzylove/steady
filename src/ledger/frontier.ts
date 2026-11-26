@@ -57,6 +57,25 @@ export const callOpenRouter: FrontierCall = async (prompt) => {
 export const hasFrontierKey = () => Boolean(process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY);
 export const defaultCall: FrontierCall = (prompt) => (process.env.ANTHROPIC_API_KEY ? callAnthropic(prompt) : callOpenRouter(prompt));
 
+/** The numbers Steady read when it made the call, as plain lines. Excludes the question, Steady's verdict and its history rule. */
+export function callContext(p: Prediction): string {
+  const skip = new Set(["question", "source", "safeDrop"]);
+  return Object.entries(p.params).filter(([k]) => !skip.has(k)).map(([k, v]) => `${k}: ${v}`).join("\n");
+}
+
+/** Second control: same model, same question, plus the same current numbers Steady had, dated at call time. */
+export async function askFrontierInformed(p: Prediction, call: FrontierCall = defaultCall): Promise<NonNullable<Prediction["frontierInformed"]>> {
+  const question = p.params["question"];
+  if (typeof question !== "string") throw new Error(`prediction ${p.id} has no params.question`);
+  const prompt = frontierPrompt(`${question}
+
+Data read from Solana mainnet when this question was asked (${p.madeAt}):
+${callContext(p)}`, new Date(p.madeAt));
+  const out = parseFrontier(await call(prompt));
+  const model = call === defaultCall && !process.env.ANTHROPIC_API_KEY ? `${FRONTIER_MODEL} via OpenRouter` : FRONTIER_MODEL;
+  return { model, verdict: out.verdict, value: out.value, why: out.why };
+}
+
 /** Ask the frontier model the question stored in params.question. */
 export async function askFrontier(p: Prediction, now: Date = new Date(), call: FrontierCall = defaultCall): Promise<NonNullable<Prediction["frontier"]>> {
   const question = p.params["question"];
