@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const chain = u.searchParams.get("chain") ?? "solana";
   const started = Date.now();
   try {
-    const r = await fetch(`${BASE}/liquidity?pool=${encodeURIComponent(pool)}&chain=${encodeURIComponent(chain)}`, { cache: "no-store", signal: AbortSignal.timeout(25000) });
+    const r = await fetch(`${BASE}/liquidity?pool=${encodeURIComponent(pool)}&chain=${encodeURIComponent(chain)}`, { cache: "no-store", headers: { "x-steady-board": "1" }, signal: AbortSignal.timeout(25000) });
     const text = await r.text();
     let body: unknown;
     try { body = JSON.parse(text); } catch { body = { error: "bad_response", reason: text.slice(0, 200) }; }

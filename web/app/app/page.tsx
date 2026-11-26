@@ -1,14 +1,16 @@
 "use client";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { post, ApiError, SOLSCAN_ACCOUNT, type Advice, type Finding, type Signed } from "@/lib/api";
+import { post, ApiError, isLikelyAddress, SOLSCAN_ACCOUNT, type Advice, type Finding, type Signed } from "@/lib/api";
 import { label, value, sentence, short, usd, SEV_ORDER, sevClass, sevWord, when } from "@/lib/format";
 import Level, { levelFromDistance } from "@/components/Level";
 import Door from "@/components/Door";
 import FixPanel from "@/components/FixPanel";
 import Memo from "@/components/Memo";
 import { EvidenceList, SourceList } from "@/components/Evidence";
+import WatchCta from "@/components/WatchCta";
+import { useIdentity } from "@/lib/identity";
 
 // What one advise run does on the server. The API answers once at the end, so these are the work, not a progress bar.
 const WORK = [
@@ -17,7 +19,7 @@ const WORK = [
   "Reading pools on Orca, Raydium and Meteora, and perps on Drift and Jupiter",
   "Asking Telegraph miners about the protocols this wallet uses",
   "Checking each miner answer against the chain and the others",
-  "Comparing idle stablecoins with verified lending rates",
+  "Comparing idle stablecoins with public lending rates, cross checked by Telegraph miners",
   "Signing the memo",
 ];
 
@@ -44,7 +46,7 @@ function Waiting({ wallet }: { wallet: string }) {
   );
 }
 
-function FindingRow({ f, wallet, idx }: { f: Finding; wallet: string; idx: number }) {
+function FindingRow({ f, wallet, idx, memo }: { f: Finding; wallet: string; idx: number; memo: Signed<Advice> }) {
   const n = f.numbers;
   const isLoan = f.code === "liquidation_near" && typeof n.distancePct === "number";
   const keys = Object.keys(n).filter((k) => !(k === "protocolHealth" && n.health === n.protocolHealth));
@@ -70,7 +72,7 @@ function FindingRow({ f, wallet, idx }: { f: Finding; wallet: string; idx: numbe
         {typeof n.protocolHealth === "number" && n.protocolHealth === n.health && (
           <p className="mute" style={{ fontSize: 14, marginTop: 8 }}>Matches the health {f.id.includes("kamino") || f.title.toLowerCase().includes("kamino") ? "Kamino" : "the protocol"} itself shows.</p>
         )}
-        {f.fix && <FixPanel wallet={wallet} fix={f.fix} />}
+        {f.fix && <FixPanel wallet={wallet} fix={f.fix} adviceMemo={memo} />}
         <details className="drawer" style={{ marginTop: 18 }}>
           <summary>Evidence: {f.sources.length} reads{f.evidence.length ? `, ${used} miner answer${used === 1 ? "" : "s"} used, ${rejected} rejected` : ""}</summary>
           <div className="drawer-body">
@@ -101,12 +103,14 @@ function Result({ advice, memo }: { advice: Advice; memo: Signed<Advice> }) {
         <div className="r-total">
           <span className="kicker">Everything Steady could price</span>
           <span className="num-xl">{usd(advice.totalUsd, 2)}</span>
-          <span className="mute" style={{ fontSize: 13 }}>{usd(advice.costUsd, 2)} spent on Telegraph answers for this check</span>
+          <span className="mute" style={{ fontSize: 13 }}>{advice.costUsd > 0 ? `${usd(advice.costUsd, 2)} spent on Telegraph answers for this check` : "No paid Telegraph answers were needed for this check"}</span>
         </div>
       </div>
 
+      <WatchCta wallet={advice.wallet} />
+
       {sorted.length ? (
-        <ol className="findings">{sorted.map((f, k) => <FindingRow key={f.id} f={f} wallet={advice.wallet} idx={k} />)}</ol>
+        <ol className="findings">{sorted.map((f, k) => <FindingRow key={f.id} f={f} wallet={advice.wallet} idx={k} memo={memo} />)}</ol>
       ) : (
         <p className="big ink2" style={{ padding: "40px 0", borderTop: "1px solid var(--line)" }}>Steady found no loans near liquidation, no risky delegations, no depegs and no idle stablecoins worth moving. Nothing to fix.</p>
       )}
@@ -138,7 +142,12 @@ function Result({ advice, memo }: { advice: Advice; memo: Signed<Advice> }) {
 
 function AppInner() {
   const params = useSearchParams();
+  const router = useRouter();
+  const id = useIdentity();
   const wallet = (params.get("wallet") ?? "").trim();
+  // No wallet in the link: use the one for this visit (Phantom or remembered), so nobody pastes it twice.
+  useEffect(() => { if (!wallet && id.ready && id.wallet) router.replace(`/app?wallet=${id.wallet}`); }, [wallet, id.ready, id.wallet, router]);
+  useEffect(() => { if (wallet && isLikelyAddress(wallet) && id.source !== "phantom") id.remember(wallet); }, [wallet]); // eslint-disable-line react-hooks/exhaustive-deps
   const [data, setData] = useState<{ advice: Advice; memo: Signed<Advice> } | null>(null);
   const [err, setErr] = useState<{ msg: string; status: number } | null>(null);
   const [run, setRun] = useState(0);
@@ -154,6 +163,7 @@ function AppInner() {
       .catch((e: ApiError) => setErr({ msg: e.message, status: e.status }));
   }, [wallet, run]);
 
+  if (!wallet && (!id.ready || id.wallet)) return <p className="mute" style={{ paddingTop: 40 }}><span className="live-dot" /> Opening your wallet</p>;
   if (!wallet) {
     return (
       <div className="app-empty">

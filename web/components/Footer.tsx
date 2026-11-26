@@ -8,7 +8,7 @@ export default function Footer() {
         <div className="foot-grid">
           <div>
             <p className="ink2" style={{ maxWidth: 360, fontSize: 15 }}>
-              Steady reads your Solana wallet, checks every number, and hands you the fix to sign. It never holds your keys or moves anything without you.
+              Steady reads your Solana wallet from mainnet, hands you the fix to sign, and keeps watching it. It never holds your keys or moves anything without you.
             </p>
           </div>
           <div className="foot-col">
@@ -22,6 +22,7 @@ export default function Footer() {
             <span className="kicker">Elsewhere</span>
             <a href="https://github.com/jenzylove/steady" target="_blank" rel="noreferrer">GitHub</a>
             <a href="https://x.com/dollar782" target="_blank" rel="noreferrer">X @dollar782</a>
+            <a href="https://t.me/steadysol_bot" target="_blank" rel="noreferrer">Telegram bot</a>
             <a href="https://telegraphprotocol.com" target="_blank" rel="noreferrer">Telegraph</a>
           </div>
         </div>

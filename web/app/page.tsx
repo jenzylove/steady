@@ -5,6 +5,7 @@ import Door from "@/components/Door";
 import LedgerPreview from "@/components/LedgerPreview";
 import MinerLive from "@/components/MinerLive";
 import Reveal from "@/components/Reveal";
+import RunningNow from "@/components/RunningNow";
 
 function Tilted({ text, start = 0 }: { text: string; start?: number }) {
   return (
@@ -19,11 +20,12 @@ function Tilted({ text, start = 0 }: { text: string; start?: number }) {
 const FAQ = [
   { q: "Does Steady hold my keys or my money?", a: "No. Steady only reads public chain data. When it prepares a fix, the transaction goes to Phantom and nothing happens unless you approve it there." },
   { q: "Do I need to connect a wallet to look?", a: "No. Paste any address and Steady reads it. You connect Phantom only when you want to sign a fix for your own wallet." },
-  { q: "What is Telegraph, and why ask miners at all?", a: "Telegraph is a network where independent miners sell answers to questions, each with a receipt. Steady reads balances, loans, pools and rates from the chain itself. It pays miners for what the chain cannot know, like news, security reviews and sanctions lists, and asks more than one so a single wrong answer cannot steer you." },
+  { q: "What is Telegraph, and why ask miners at all?", a: "Telegraph is a network where independent miners sell answers to questions, each with a receipt. Steady reads balances, loans and pools from the chain itself. It pays miners for what the chain cannot know, like protocol news and sanctions lists. For a lending rate it asks several miners and drops any answer far from the public rate, so a single wrong answer cannot steer you." },
   { q: "What happens when a miner is wrong?", a: "The answer is struck out and kept as evidence with the reason. In our own paid tests one miner said marginfi pays 330% on USDC, and one said $3.5M for an Orca pool holding about $17.9M. Neither would have moved a cent." },
   { q: "How do I know the numbers are right?", a: "Steady's health number matched Kamino's own within 0.5% on 14 real loans, and marginfi's within 0.41% on 12. Every recommendation also comes as a signed memo listing each read and each miner answer, so you can check it yourself." },
+  { q: "Does Steady keep working after I close the tab?", a: "Yes, if you want it to. Tap Watch this wallet after a read and the Steady Telegram bot rereads it every 15 minutes. It messages you only when a risk is new or gets worse, with the fix ready to sign. The numbers at the top of this page are live counts of that work." },
   { q: "What does it cost?", a: "Checking a wallet is free, up to 20 checks a day. Steady pays the miners. Payments to Telegraph run on its testnet until Telegraph mainnet; every read of your wallet is real Solana mainnet." },
-  { q: "Is this investment advice?", a: "No. Steady shows you facts about your own positions and a fix you can choose to sign. The rules that decide are code you can read; a language model only puts the numbers into plain words." },
+  { q: "Is this investment advice?", a: "No. Steady shows you facts about your own positions and a fix you can choose to sign. Code decides every finding and every fix, and the words come from those same rules. No language model writes your advice." },
 ];
 
 export default function Home() {
@@ -38,12 +40,13 @@ export default function Home() {
             <span className="hero-steady"><Tilted text="Then fix it." start={700} /></span>
           </h1>
           <p className="hero-sub ink2">
-            Paste any wallet. Steady reads everything it holds from mainnet, checks each fact against independent Telegraph miners and the chain itself, and hands you the exact transaction to sign in Phantom.
+            Paste any wallet. Steady reads everything it holds from Solana mainnet, buys what the chain cannot know from Telegraph miners, and hands you the exact transaction to sign in Phantom. Then it keeps watching.
           </p>
           <HeroDemo />
           <div className="hero-door">
             <Door autoFocus={false} />
           </div>
+          <RunningNow />
         </div>
       </section>
 
@@ -96,10 +99,10 @@ export default function Home() {
           </Reveal>
           <Reveal className="split">
             <p className="ink2 big">
-              Paste a transaction someone asked you to sign. Steady runs it on mainnet first and tells you what leaves your wallet, what comes in, who gains control of your tokens, and whether the recipient imitates an address you have used before.
+              Check a send before you make it, or a transaction a site wants you to sign. Steady runs it on mainnet first and tells you what leaves your wallet, who gains control of your tokens or the wallet itself, and whether the recipient imitates an address you have paid before.
             </p>
             <div className="verdicts">
-              <div><span className="display v ok">OK</span><span className="mute">Looks safe to sign</span></div>
+              <div><span className="display v ok">OK</span><span className="mute">No takeover, drain or hidden approval found</span></div>
               <div><span className="display v warn">Caution</span><span className="mute">Read the reasons first</span></div>
               <div><span className="display v risk">Block</span><span className="mute">Do not sign this</span></div>
               <Link href="/check" className="btn" style={{ textDecoration: "none", marginTop: 18, width: "fit-content" }}><span className="bub" /> Check a transaction</Link>
@@ -117,8 +120,8 @@ export default function Home() {
           <Reveal className="split">
             <div>
               <p className="ink2 big">Steady also sells one answer to every app on Telegraph: how much money sits in a Solana pool right now, read from the pool&apos;s own vaults on Orca, Raydium and Meteora. No third party index in between.</p>
-              <p className="mute" style={{ marginTop: 18, fontSize: 15 }}>Registered on Telegraph as miner 6203 for pool liquidity checks.</p>
-              <Link href="/miner" className="btn btn-ghost" style={{ textDecoration: "none", marginTop: 26 }}><span className="bub" /> Ask it a pool</Link>
+              <p className="mute" style={{ marginTop: 18, fontSize: 15 }}>Registration 6203, Telegraph miner id 7420317, serving pool liquidity checks.</p>
+              <Link href="/miner" className="btn btn-ghost" style={{ textDecoration: "none", marginTop: 26 }}><span className="bub" /> See the live board</Link>
             </div>
             <MinerLive />
           </Reveal>

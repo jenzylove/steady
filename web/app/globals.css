@@ -183,3 +183,4 @@ table.plain { width: 100%; border-collapse: collapse; font-size: 14px; }
 table.plain th { text-align: left; font-weight: 500; color: var(--mute); font-size: 12px; padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line2); white-space: nowrap; }
 table.plain td { padding: 12px 14px 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 .kicker .mono, .kicker .hash { text-transform: none; letter-spacing: 0; }
+.page p, .app p { overflow-wrap: break-word; }

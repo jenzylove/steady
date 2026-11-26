@@ -14,7 +14,7 @@ export function EvidenceList({ items }: { items: Evidence[] }) {
           <div className="ev-head">
             <span className={`tag ${e.used ? "vial" : "risk"}`}>{e.used ? "Used" : "Rejected"}</span>
             {e.role && <span className="tag">{ROLE[e.role] ?? e.role}</span>}
-            <span style={{ fontWeight: 600 }}>{e.minerName ?? (e.minerId ? `Miner ${e.minerId}` : "Unknown miner")}</span>
+            <span style={{ fontWeight: 600 }}>{(e.minerName ?? (e.minerId ? `Miner ${e.minerId}` : "Unknown miner")).replace(/\s*[—–]\s*/g, ": ")}</span>
             <span className="mute" style={{ fontSize: 13 }}>asked about {INTENT(e.intent)}</span>
           </div>
           {!e.used && e.rejectReason && <p style={{ color: "var(--risk)", fontSize: 14, marginTop: 6 }}>Why rejected: {e.rejectReason}</p>}

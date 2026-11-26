@@ -99,3 +99,48 @@ pre.logs { margin-top: 10px; font-family: var(--font-mono), monospace; font-size
 .facts dd { font-family: var(--font-mono), monospace; font-size: 14px; overflow-wrap: anywhere; }
 @media (max-width: 560px) { .facts { grid-template-columns: 1fr; } .facts dd { border-top: 0; padding-top: 0; } }
 .settle-in { animation: lineIn .7s cubic-bezier(.2,.8,.2,1) both; }
+
+/* Watch on Telegram: the second loop, right under the headline */
+.watch { display: flex; justify-content: space-between; align-items: center; gap: 28px; flex-wrap: wrap; padding: 30px 0 34px; margin-bottom: 8px; border-top: 1px solid var(--line); }
+.watch-h { font-size: clamp(26px, 3vw, 38px); margin: 10px 0 10px; }
+@media (max-width: 560px) { .watch .btn { width: 100%; justify-content: center; } }
+
+/* Check: pick a scenario, not a textarea */
+.modes { display: grid; grid-template-columns: 1fr 1fr; max-width: 900px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.mode { display: grid; align-content: start; grid-template-columns: 34px 1fr; column-gap: 12px; row-gap: 2px; text-align: left; padding: 20px 18px 20px 0; background: none; border: 0; color: var(--ink2); cursor: pointer; font: inherit; position: relative; }
+.mode + .mode { padding-left: 22px; border-left: 1px solid var(--line); }
+.mode .mono { font-size: 12px; padding-top: 6px; grid-row: 1 / span 2; }
+.mode-t { font-family: var(--font-display), system-ui, sans-serif; font-size: clamp(22px, 2.4vw, 30px); line-height: 1.05; color: var(--ink2); }
+.mode-d { font-size: 14px; grid-column: 2; }
+.mode.on .mode-t { color: var(--ink); }
+.mode.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--vial); }
+.mode + .mode.on::after { left: 0; }
+.mode:hover .mode-t { color: var(--ink); }
+@media (max-width: 640px) { .modes { grid-template-columns: 1fr; } .mode + .mode { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); } }
+.send-row { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-end; }
+.send-row .chips { margin-top: 10px; }
+.bad { list-style: none; padding: 0; margin: 0; max-width: 900px; }
+.bad li { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 22px 0; border-top: 1px solid var(--line); }
+.bad li:last-child { border-bottom: 1px solid var(--line); }
+@media (max-width: 560px) { .bad li { flex-direction: column; align-items: stretch; gap: 14px; } .bad li .btn { justify-content: center; } }
+
+/* Miner: live status and board */
+.mstat { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.mstat > div { display: flex; flex-direction: column; gap: 6px; padding: 22px 20px 22px 0; font-size: 13px; }
+.mstat > div + div { padding-left: 20px; border-left: 1px solid var(--line); }
+.mstat-v { font-family: var(--font-mono), monospace; font-size: clamp(26px, 3vw, 38px); letter-spacing: -0.03em; color: var(--ink); line-height: 1.1; }
+@media (max-width: 860px) { .mstat { grid-template-columns: 1fr 1fr; } .mstat > div:nth-child(3) { padding-left: 0; border-left: 0; } .mstat > div:nth-child(n+3) { border-top: 1px solid var(--line); } }
+.board-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; margin-bottom: 18px; }
+.board-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 12px; color: var(--mute); }
+@media (max-width: 640px) { .board-meta { align-items: flex-start; } }
+table.board th.r, table.board td.r { text-align: right; padding-left: 14px; }
+table.board tr.brow { cursor: pointer; transition: background .2s; }
+table.board tr.brow:hover, table.board tr.brow.on { background: var(--vial-glass); }
+table.board tr.brow:focus-visible { outline: 2px solid var(--vial-ink); outline-offset: -2px; }
+table.board td { padding-left: 8px; }
+table.board tr.bjson td { background: var(--bg2); padding: 16px; }
+table.board pre.logs { max-height: 380px; overflow: auto; }
+@media (max-width: 640px) { table.board .hide-s { display: none; } }
+.how { list-style: none; padding: 0; margin: 0; }
+.how li { display: flex; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); color: var(--ink2); }
+.how li .mono { font-size: 12px; padding-top: 4px; }

@@ -1,12 +1,16 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useIdentity } from "@/lib/identity";
 import { isLikelyAddress, SAMPLE_WALLET } from "@/lib/api";
 
 export default function Door({ cta = "Check this wallet", autoFocus = false }: { cta?: string; autoFocus?: boolean }) {
   const r = useRouter();
   const [v, setV] = useState("");
   const [err, setErr] = useState("");
+  const id = useIdentity();
+  const [touched, setTouched] = useState(false);
+  useEffect(() => { if (!touched && id.wallet) setV(id.wallet); }, [id.wallet, touched]);
   const go = (w: string) => {
     const s = w.trim();
     if (!isLikelyAddress(s)) { setErr("That does not look like a Solana wallet address."); return; }
@@ -15,7 +19,7 @@ export default function Door({ cta = "Check this wallet", autoFocus = false }: {
   return (
     <div>
       <form className="door" onSubmit={(e) => { e.preventDefault(); go(v); }}>
-        <input value={v} onChange={(e) => { setV(e.target.value); setErr(""); }} placeholder="Paste a Solana wallet address" aria-label="Solana wallet address" spellCheck={false} autoComplete="off" autoFocus={autoFocus} />
+        <input value={v} onChange={(e) => { setV(e.target.value); setErr(""); setTouched(true); }} placeholder="Paste a Solana wallet address" aria-label="Solana wallet address" spellCheck={false} autoComplete="off" autoFocus={autoFocus} />
         <button className="btn" type="submit"><span className="bub" /> {cta}</button>
       </form>
       <p style={{ fontSize: 14, marginTop: 14 }} className="mute">

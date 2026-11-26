@@ -23,10 +23,19 @@ function plainError(err: string): string {
   return err;
 }
 
-export default function FixPanel({ wallet, fix }: { wallet: string; fix: FixSpec }) {
+/** True when the API has a builder for this fix (see src/fix/build.ts). Others are shown as advice only. */
+export function hasBuilder(fix: FixSpec): boolean {
+  if (fix.protocol === "kamino" && (fix.action === "repay" || fix.action === "withdraw" || fix.action === "deposit")) return true;
+  if (fix.action === "revoke" && !!fix.account) return true;
+  if (fix.action === "swap" && !!fix.mintIn && !!fix.mintOut) return true;
+  return false;
+}
+
+export default function FixPanel({ wallet, fix, adviceMemo }: { wallet: string; fix: FixSpec; adviceMemo?: Signed<unknown> }) {
   const [state, setState] = useState<"idle" | "building" | "built" | "error">("idle");
   const [built, setBuilt] = useState<BuiltFix | null>(null);
   const [memo, setMemo] = useState<Signed<unknown> | null>(null);
+  const [memoNote, setMemoNote] = useState("");
   const [err, setErr] = useState("");
   const [sig, setSig] = useState("");
   const [signing, setSigning] = useState(false);
@@ -37,8 +46,8 @@ export default function FixPanel({ wallet, fix }: { wallet: string; fix: FixSpec
   const prepare = async () => {
     setState("building"); setErr(""); setSig(""); setSignErr("");
     try {
-      const r = await post<{ built: BuiltFix; memo: Signed<unknown> }>("/fix", { wallet, fix }, 150_000);
-      setBuilt(r.built); setMemo(r.memo); setState("built");
+      const r = await post<{ built: BuiltFix; memo: Signed<unknown> | null; memoNote?: string }>("/fix", { wallet, fix, adviceMemo }, 150_000);
+      setBuilt(r.built); setMemo(r.memo); setMemoNote(r.memo ? "" : r.memoNote ?? ""); setState("built");
     } catch (e) { setErr((e as Error).message); setState("error"); }
   };
 
@@ -60,6 +69,7 @@ export default function FixPanel({ wallet, fix }: { wallet: string; fix: FixSpec
   };
 
   const sim = built?.simulation;
+  const buildable = hasBuilder(fix);
   return (
     <div className="fix">
       <div className="fix-head">
@@ -72,13 +82,15 @@ export default function FixPanel({ wallet, fix }: { wallet: string; fix: FixSpec
             </p>
           )}
         </div>
-        {state !== "built" && (
+        {!buildable && <span className="tag">Advice only</span>}
+        {buildable && state !== "built" && (
           <button className="btn" onClick={prepare} disabled={state === "building"}>
             <span className="bub" /> {state === "building" ? "Building and simulating" : state === "error" ? "Try again" : `Prepare fix`}
           </button>
         )}
       </div>
 
+      {!buildable && <p className="mute" style={{ fontSize: 14 }}>Steady cannot build this one for you yet. You can do it in {fix.protocol}&apos;s own app.</p>}
       {state === "building" && <p className="mute" style={{ fontSize: 14 }}><span className="live-dot" /> Steady rereads the wallet, builds the {VERB[fix.action]?.toLowerCase() ?? fix.action} for it, and runs it on mainnet without sending. This takes about half a minute.</p>}
       {state === "error" && <p style={{ color: "var(--risk)" }}>{err}</p>}
 
@@ -113,7 +125,7 @@ export default function FixPanel({ wallet, fix }: { wallet: string; fix: FixSpec
                     <span className="bub" /> {signing ? "Waiting for Phantom" : !w.connected ? (w.installed ? "Connect Phantom to sign" : "Get Phantom to sign") : "Sign in Phantom"}
                   </button>
                   <span className="mute" style={{ fontSize: 14 }}>
-                    {!sim?.ok ? "Signing is off because the simulation says it would fail." : "Phantom shows you exactly what changes before you approve."}
+                    {!sim?.ok ? "Signing is off because the simulation says it would fail." : "Phantom shows you the transaction to approve. Nothing moves until you do."}
                   </span>
                 </>
               )}
@@ -121,6 +133,7 @@ export default function FixPanel({ wallet, fix }: { wallet: string; fix: FixSpec
             </div>
           )}
           <button className="linkbtn" style={{ fontSize: 14, marginTop: 14 }} onClick={prepare}>Prepare it again with fresh numbers</button>
+          {!memo && memoNote && <p className="mute" style={{ fontSize: 13, marginTop: 12 }}>No signed memo for this one: {memoNote}.</p>}
           {memo && <details className="drawer" style={{ marginTop: 16 }}><summary>The signed memo for this fix</summary><div style={{ marginTop: 14 }}><Memo memo={memo} title="Fix memo" /></div></details>}
         </div>
       )}

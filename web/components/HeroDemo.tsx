@@ -37,7 +37,7 @@ export default function HeroDemo() {
   return (
     <div className="hero-demo" aria-label="A real Steady run, replayed">
       <div className="hd-top">
-        <span className="kicker" style={{ display: "inline-flex", gap: 10, alignItems: "center" }}><span className="live-dot" /> A real run, replayed</span>
+        <span className="kicker">A recorded run from Nov 26 2026, replayed</span>
         <span className="kicker">Kamino loan 3rvE…L1W</span>
       </div>
 

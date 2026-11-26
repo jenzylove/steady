@@ -4,6 +4,10 @@ import Link from "next/link";
 import { call, type LedgerEntry, type PredictionKind } from "@/lib/api";
 import { relative, short, usd, when } from "@/lib/format";
 import Reveal from "@/components/Reveal";
+import RunningNow from "@/components/RunningNow";
+
+interface Anchor { batch: string; root: string; count: number; txHash: string; chain: string; at: string }
+type Entry = LedgerEntry & { firstMemo?: { digest: string } };
 
 const KINDS: Record<PredictionKind, { name: string; ask: string }> = {
   liquidation_distance: { name: "Loans stay safe", ask: "Will this loan still be above liquidation in 24 hours?" },
@@ -27,10 +31,11 @@ function Verdict({ v, label }: { v: boolean | undefined; label: string }) {
 }
 
 export default function ProofPage() {
-  const [rows, setRows] = useState<LedgerEntry[] | null>(null);
+  const [rows, setRows] = useState<Entry[] | null>(null);
+  const [anchors, setAnchors] = useState<Anchor[]>([]);
   const [err, setErr] = useState("");
   const [filter, setFilter] = useState<PredictionKind | "all">("all");
-  useEffect(() => { call<{ entries: LedgerEntry[] }>("/ledger", { timeoutMs: 20000 }).then((d) => setRows(d.entries)).catch((e) => setErr(e.message)); }, []);
+  useEffect(() => { call<{ entries: Entry[]; anchors?: Anchor[] }>("/ledger", { timeoutMs: 20000 }).then((d) => { setRows(d.entries); setAnchors(d.anchors ?? []); }).catch((e) => setErr(e.message)); }, []);
 
   const stats = useMemo(() => {
     const out = {} as Record<PredictionKind, { n: number; settled: number; hits: number; fHits: number; fN: number; stake: number }>;
@@ -61,6 +66,8 @@ export default function ProofPage() {
         <p className="ink2 big">Steady makes short calls about real positions before the outcome is known, signs them, and settles them later from its own mainnet reads. A frontier model answers the same questions blind. Every miss stays on this page.</p>
       </div>
 
+      <RunningNow full />
+      <div style={{ height: 56 }} />
       {err && <p style={{ color: "var(--risk)" }}>The ledger could not load: {err}</p>}
       {!rows && !err && <p className="mute"><span className="live-dot" /> Loading the ledger</p>}
 
@@ -77,7 +84,7 @@ export default function ProofPage() {
                     {s.settled ? `Steady right on ${s.hits} of ${s.settled} settled` : `${s.n} calls open, none settled yet`}
                     {s.fN ? `. Frontier model right on ${s.fHits} of ${s.fN}.` : ""}
                   </span>
-                  {s.stake > 0 && <span className="mute mono" style={{ fontSize: 12 }}>{usd(s.stake)} at stake</span>}
+                  {s.stake > 0 && <span className="mute mono" style={{ fontSize: 12 }}>{usd(s.stake)} in loans watched</span>}
                 </div>
               );
             })}
@@ -88,6 +95,30 @@ export default function ProofPage() {
             {firstSettle && !settled.length ? `The first ones settle ${when(firstSettle)}, ${relative(firstSettle)}. ` : ""}
             {withFrontier ? `The frontier model has answered ${withFrontier} of them.` : "The frontier model's blind answers are not in yet; each call shows that plainly until they are."}
           </p>
+
+          <div className="two" style={{ marginTop: 48 }}>
+            <div>
+              <span className="kicker">What each side was given</span>
+              <p className="ink2" style={{ marginTop: 10 }}><strong style={{ color: "var(--ink)" }}>Steady:</strong> live reads of the chain and the protocols, plus seven days of history for each subject.</p>
+              <p className="ink2" style={{ marginTop: 8 }}><strong style={{ color: "var(--ink)" }}>Frontier model:</strong> the same question and today&apos;s date only. No tools, no chain reads.</p>
+              <p className="mute" style={{ marginTop: 8, fontSize: 14 }}>The outcome is settled by Steady&apos;s own mainnet read at the stated time, and the settlement is a second signed memo.</p>
+            </div>
+            <div>
+              <span className="kicker">Written on chain before the outcome</span>
+              {anchors.length ? anchors.map((a) => {
+                const batch = rows.filter((e) => e.prediction.madeAt.slice(0, 16) === a.batch);
+                const firstSettled = batch.map((e) => e.prediction.outcome?.settledAt).filter(Boolean).sort()[0];
+                const before = !firstSettled || a.at < firstSettled;
+                return (
+                  <div key={a.batch} className="anchor">
+                    <p style={{ marginTop: 10 }}>{a.count} calls made {when(a.batch + ":00Z")}. Their digests were hashed into one root and written to Ethereum Sepolia {when(a.at)}{before ? ", before any of them settled." : "."}</p>
+                    <p className="mono" style={{ fontSize: 12, marginTop: 6 }}><a className="hash" href={`https://sepolia.etherscan.io/tx/${a.txHash}`} target="_blank" rel="noreferrer">tx {short(a.txHash, 10, 6)}</a> <span className="mute">root {short(a.root, 8, 6)}</span></p>
+                  </div>
+                );
+              }) : <p className="mute" style={{ marginTop: 10 }}>No batch has been written on chain yet.</p>}
+              <p className="mute" style={{ marginTop: 10, fontSize: 13 }}>The root is the SHA256 of the original call digests, sorted and joined by new lines. New daily batches are written within 15 minutes.</p>
+            </div>
+          </div>
 
           <section style={{ marginTop: 64 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16, flexWrap: "wrap", marginBottom: 12 }}>
@@ -107,7 +138,7 @@ export default function ProofPage() {
                     <summary>
                       <div>
                         <p style={{ fontSize: 17 }}>{p.claim}</p>
-                        <p className="mute mono" style={{ fontSize: 12, marginTop: 6 }}>made {when(p.madeAt)} · settles {when(p.settleAt)}{p.usdAtStake ? ` · ${usd(p.usdAtStake)} at stake` : ""}</p>
+                        <p className="mute mono" style={{ fontSize: 12, marginTop: 6 }}>made {when(p.madeAt)} · settles {when(p.settleAt)}{p.usdAtStake ? ` · ${usd(p.usdAtStake)} loan size` : ""}</p>
                       </div>
                       <div className="pred-calls">
                         <Verdict v={p.steady.verdict} label="Steady" />
@@ -121,7 +152,8 @@ export default function ProofPage() {
                       <div>
                         <span className="kicker">Outcome</span>
                         <p style={{ marginTop: 8 }}>{p.outcome ? `Settled ${when(p.outcome.settledAt)} at ${p.outcome.value}. The claim was ${p.outcome.verdict ? "true" : "false"}.` : "Not settled yet."}</p>
-                        <p className="mono mute" style={{ fontSize: 12, marginTop: 10 }}>memo {short(e.memo.digest, 8, 6)} signed by {short(e.memo.signer, 6, 4)}</p>
+                        {e.firstMemo && e.firstMemo.digest !== e.memo.digest && <p className="mono mute" style={{ fontSize: 12, marginTop: 10 }}>original call {short(e.firstMemo.digest, 8, 6)}</p>}
+                        <p className="mono mute" style={{ fontSize: 12, marginTop: e.firstMemo && e.firstMemo.digest !== e.memo.digest ? 4 : 10 }}>{e.firstMemo && e.firstMemo.digest !== e.memo.digest ? "latest version" : "memo"} {short(e.memo.digest, 8, 6)} signed by {short(e.memo.signer, 6, 4)}</p>
                       </div>
                     </div>
                   </details>

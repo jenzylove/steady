@@ -14,7 +14,7 @@ const mono = Azeret_Mono({ variable: "--font-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Steady",
-  description: "Paste a Solana wallet. Steady tells you in plain words what could hurt it, checks every number with independent Telegraph miners, and hands you the fix to sign in Phantom.",
+  description: "Paste a Solana wallet. Steady reads it from mainnet, tells you in plain words what could hurt it, buys what the chain cannot know from Telegraph miners, hands you the fix to sign in Phantom, and keeps watching on Telegram.",
 };
 
 const themeScript = `try{var t=localStorage.getItem("steady-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}`;
