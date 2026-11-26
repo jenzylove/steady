@@ -9,3 +9,4 @@ secrets/
 .vercel/
 
 data/
+*.tsbuildinfo

@@ -60,7 +60,7 @@ const server = createServer(async (req, res) => {
       if (!isAddress(wallet) || !fix?.action) return send(res, 400, { error: "wallet and fix are required" }, origin);
       const p = await readPortfolio(wallet, ctx);
       const built = await buildFix(ctx, wallet, fix, p.positions);
-      return send(res, 200, { built, memo: await sign({ wallet, fix, builder: built.builder, simulation: built.simulation ?? null, unsupported: built.unsupported ?? null }) }, origin);
+      return send(res, 200, { built, memo: await sign({ wallet, fix, builder: built.builder, summary: built.summary ?? null, simulation: built.simulation ?? null, unsupported: built.unsupported ?? null }) }, origin);
     }
 
     if (req.method === "POST" && url.pathname === "/presign") {

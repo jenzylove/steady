@@ -3,12 +3,13 @@ import { PublicKey, TransactionMessage, VersionedTransaction } from "@solana/web
 import { createRevokeInstruction, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import type { AdapterContext, Position } from "../engine/types.js";
 import type { FixSpec } from "../engine/advice/types.js";
+import { kaminoRepay, kaminoWithdraw } from "./kamino-sdk.js";
 
 const KTX = "https://api.kamino.finance/ktx/klend";
 const JUP = "https://lite-api.jup.ag/swap/v1";
 
 export interface Simulation { ok: boolean; err?: string | undefined; unitsConsumed?: number | undefined; logsTail: string[] }
-export interface BuiltFix { fix: FixSpec; transaction?: string | undefined; simulation?: Simulation | undefined; unsupported?: string | undefined; builder: string }
+export interface BuiltFix { fix: FixSpec; transaction?: string | undefined; simulation?: Simulation | undefined; unsupported?: string | undefined; builder: string; summary?: string | undefined }
 
 async function rpc<T>(ctx: AdapterContext, method: string, params: unknown[]): Promise<T> {
   const res = await ctx.fetch(ctx.heliusRpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
@@ -43,10 +44,12 @@ export async function buildFix(ctx: AdapterContext, wallet: string, fix: FixSpec
     if (fix.protocol === "kamino" && (fix.action === "repay" || fix.action === "withdraw")) {
       const leg = positions.find((p) => p.protocol === "kamino" && p.account === fix.account && p.mint === fix.mintIn && p.kind === (fix.action === "repay" ? "borrow" : "lend"));
       const market = leg?.extra?.market as string | undefined, reserve = leg?.extra?.reserve as string | undefined;
-      if (!market || !reserve) return { fix, builder: "kamino ktx", unsupported: "position not found in this read" };
-      const r = await kaminoTx(ctx, fix.action, wallet, market, reserve, fix.amount);
-      if (!r.tx) return { fix, builder: "kamino ktx", unsupported: `Kamino's builder cannot prepare this one (${r.error}); do it in the Kamino app` };
-      return { fix, builder: "kamino ktx", transaction: r.tx, simulation: await simulate(ctx, r.tx) };
+      if (!leg || !market || !reserve || !fix.account || !fix.mintIn) return { fix, builder: "kamino sdk", unsupported: "position not found in this read" };
+      const k = fix.action === "repay"
+        ? await kaminoRepay(ctx, wallet, fix.account, reserve, fix.mintIn, leg.symbol ?? "tokens", fix.amount, positions)
+        : await kaminoWithdraw(ctx, wallet, fix.account, reserve, leg.symbol ?? "tokens", fix.amount, positions);
+      if (!k.transaction) return { fix, builder: `kamino sdk ${k.route}`, unsupported: k.unsupported };
+      return { fix, builder: `kamino sdk ${k.route}`, summary: k.summary, transaction: k.transaction, simulation: await simulate(ctx, k.transaction) };
     }
     if (fix.protocol === "kamino" && fix.action === "deposit" && fix.mintIn) {
       const reserve = await kaminoReserveFor(ctx, fix.mintIn);
