@@ -128,7 +128,7 @@ export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligatio
       kaminoMarket: market, amount: String(Math.round(amount * 10 ** reserve.stats.decimals)), reserveAddress: reserve.address, owner, obligation: ob,
       useV2Ixs: true, scopeRefreshConfig: undefined, currentLedgerInstant: await getCurrentLedgerInstant(rpc as never), includeAtaIxs: true,
     });
-    return { route: "repay", transaction: await compile(ctx, wallet, KaminoAction.actionToIxs(action), luts), summary: `Repays ${amount} ${symbol} from your wallet.` };
+    return { route: "repay", transaction: await compile(ctx, wallet, KaminoAction.actionToIxs(action), luts), summary: `Repays ${+amount.toFixed(4)} ${symbol} from your wallet.` };
   }
 
   // Not enough of the debt token in the wallet: pay it from the largest collateral in the same loan.
@@ -179,7 +179,7 @@ export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligatio
   return {
     route: "repay-with-collateral",
     transaction: tx,
-    summary: `Your wallet holds ${walletBalance(positions, debtMint).toFixed(2)} ${symbol}, so this sells about ${sell} ${coll.symbol} from the loan's own collateral to repay ${amount} ${symbol}. No spare ${symbol} needed.`,
+    summary: `Your wallet holds ${walletBalance(positions, debtMint).toFixed(2)} ${symbol}, so this sells about ${sell} ${coll.symbol} from the loan's own collateral to repay ${+amount.toFixed(4)} ${symbol}. No spare ${symbol} needed.`,
   };
 }
 
@@ -196,5 +196,5 @@ export async function kaminoWithdraw(ctx: AdapterContext, wallet: string, obliga
     kaminoMarket: market, amount: String(Math.round(amount * 10 ** reserve.stats.decimals)), reserveAddress: reserve.address, owner: createNoopSigner(address(wallet)), obligation: ob,
     useV2Ixs: true, scopeRefreshConfig: undefined, currentLedgerInstant: await getCurrentLedgerInstant(rpcFor(ctx) as never), includeAtaIxs: true,
   } as never);
-  return { route: "withdraw", transaction: await compile(ctx, wallet, KaminoAction.actionToIxs(action), luts), summary: `Withdraws ${amount} ${symbol} to your wallet.` };
+  return { route: "withdraw", transaction: await compile(ctx, wallet, KaminoAction.actionToIxs(action), luts), summary: `Withdraws ${+amount.toFixed(4)} ${symbol} to your wallet.` };
 }
