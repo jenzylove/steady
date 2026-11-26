@@ -1,0 +1,10 @@
+import { makeContext } from "../src/engine/context.js";
+import { kaminoAdapter } from "../src/engine/adapters/kamino.js";
+const W = "44tDHrCk3yr91ruoGk9VZMHJoKDjviuHAXZrwYBfsCaS";
+const r = await kaminoAdapter.read(W, makeContext());
+const b = r.positions.filter((p) => p.kind === "borrow").map((p) => ({ sym: p.symbol, amount: p.amount, ...(p.extra as any) }));
+console.log(JSON.stringify(b));
+const x = b.find((p) => p.sym === (process.argv[2] ?? "USDT")) ?? b[0];
+const res = await fetch("https://api.kamino.finance/ktx/klend/repay", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: W, market: x.market, reserve: x.reserve, amount: "1" }) });
+const t = await res.text();
+console.log(res.status, t.slice(0, 400));
