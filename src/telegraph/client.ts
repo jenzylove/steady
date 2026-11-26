@@ -3,6 +3,7 @@ import "dotenv/config";
 import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
+import { bump } from "../stats/counters.js";
 
 export const NODE = process.env.TELEGRAPH_NODE ?? "https://devnode.telegraphprotocol.com";
 const NET = "eip155:84532";
@@ -68,7 +69,7 @@ export async function ask(intent: string, params: Record<string, unknown>, miner
     const r = res.headers.get("x-telegraph-receipt");
     const receipt = r ? JSON.parse(Buffer.from(r, "base64").toString()) : undefined;
     const costUsd = typeof body.cost_usd === "number" ? body.cost_usd : undefined;
-    if (res.status === 200 && costUsd) spentUsd += costUsd;
+    if (res.status === 200 && costUsd) { spentUsd += costUsd; bump("telegraphPurchases"); bump("telegraphSpendUsd", costUsd); }
     return {
       intent, params, ok: res.status === 200 && !!body.result, status: res.status,
       minerId: body.miner_id, minerName: body.miner_name, servedRank: body.served_rank,

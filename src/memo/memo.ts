@@ -3,6 +3,7 @@ import "dotenv/config";
 import { createHash } from "node:crypto";
 import { privateKeyToAccount } from "viem/accounts";
 import { verifyMessage } from "viem";
+import { bump } from "../stats/counters.js";
 
 /** Canonical JSON: keys sorted at every level, no whitespace. */
 export function canonical(v: unknown): string {
@@ -24,6 +25,7 @@ export async function sign<T>(body: T): Promise<Signed<T>> {
   const acct = privateKeyToAccount(key);
   const d = digest(body);
   const signature = await acct.signMessage({ message: `Steady memo sha256:${d}` });
+  bump("memosSigned");
   return { body, digest: d, signer: acct.address, signature };
 }
 
