@@ -9,6 +9,7 @@ import { presign, isAddress } from "../presign/check.js";
 import { sign } from "../memo/memo.js";
 import { spend } from "../telegraph/client.js";
 import type { FixSpec } from "../engine/advice/types.js";
+import { startLedgerJobs } from "../ledger/jobs.js";
 
 const ctx = makeContext();
 const ORIGINS = (process.env.ALLOWED_ORIGINS ?? "*").split(",");
@@ -83,3 +84,4 @@ const server = createServer(async (req, res) => {
 
 const port = Number(process.env.PORT ?? 8788);
 server.listen(port, () => console.log(`steady api on :${port}`));
+if (process.env.LEDGER_JOBS !== "off") startLedgerJobs(ctx);
