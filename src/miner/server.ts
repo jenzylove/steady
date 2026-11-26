@@ -96,8 +96,13 @@ export function createHandler(deps: MinerDeps) {
   };
 }
 
+/** Counts since this process started. Reads from Steady's own site send x-steady-board and are counted apart. */
+export interface MinerStats { since: string; answers: number; refused: number; boardReads: number; lastAnswerAt: string | null }
+
 export function createMinerServer(deps: MinerDeps): Server {
   const handle = createHandler(deps);
+  const clock = deps.now ?? Date.now;
+  const stats: MinerStats = { since: new Date(clock()).toISOString(), answers: 0, refused: 0, boardReads: 0, lastAnswerAt: null };
   return createServer(async (req, res) => {
     const send = (r: Reply) => {
       res.writeHead(r.status, { "content-type": "application/json", "cache-control": "no-store" });
@@ -114,8 +119,15 @@ export function createMinerServer(deps: MinerDeps): Server {
         res.writeHead(200, { "content-type": "text/yaml; charset=utf-8" });
         return void res.end(bytes);
       }
-      if (url.pathname === "/liquidity") return send(await handle(url.searchParams.get("pool"), url.searchParams.get("chain")));
-      send({ status: 404, body: { error: "not_found", reason: "routes: GET /liquidity?pool=&chain=solana, GET /health" } });
+      if (url.pathname === "/stats") return send({ status: 200, body: { ...stats } });
+      if (url.pathname === "/liquidity") {
+        const r = await handle(url.searchParams.get("pool"), url.searchParams.get("chain"));
+        if (req.headers["x-steady-board"]) stats.boardReads++;
+        else if (r.status === 200) { stats.answers++; stats.lastAnswerAt = new Date(clock()).toISOString(); }
+        else stats.refused++;
+        return send(r);
+      }
+      send({ status: 404, body: { error: "not_found", reason: "routes: GET /liquidity?pool=&chain=solana, GET /stats, GET /health" } });
     } catch (e) {
       send({ status: 500, body: { error: "internal", reason: String((e as Error).message ?? e).slice(0, 200) } });
     }

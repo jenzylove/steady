@@ -3,6 +3,7 @@ import { advise } from "../engine/advice/advise.js";
 import type { Advice } from "../engine/advice/types.js";
 import type { AdapterContext } from "../engine/types.js";
 import { formatAlert, formatReport } from "./report.js";
+import { bump, mark } from "../stats/counters.js";
 import { addWallet, diffFindings, isAlertable, loadWatch, removeWallet, saveWatch, type WatchState } from "./watch.js";
 
 const B58 = /^[1-9A-HJ-NP-Za-km-z]+$/;
@@ -32,6 +33,8 @@ export class Tg {
     return j.result;
   }
   send(chatId: string | number, text: string) {
+    if (text.startsWith("<b>Steady alert</b>")) bump("alertsSent");
+    else if (text.startsWith("<b>Steady</b> ·")) bump("reportsSent");
     return this.call("sendMessage", { chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true });
   }
 }
@@ -51,14 +54,15 @@ export async function handleText(d: BotDeps, chat: string, text: string): Promis
     try { await d.tg.send(chat, formatReport(await run(addr))); }
     catch (e) { await d.tg.send(chat, "Could not read that wallet right now. Try again in a minute."); console.error("advise failed", String(e).slice(0, 120)); }
   };
-  if (cmd === "/start") { await d.tg.send(chat, WELCOME); return; }
+  // t.me/steadysol_bot?start=<wallet> arrives as "/start <wallet>": treat it as /watch <wallet>.
+  if (cmd === "/start" && !isSolanaAddress(arg)) { await d.tg.send(chat, WELCOME); return; }
   if (cmd === "/help") { await d.tg.send(chat, HELP); return; }
   if (cmd === "/list") {
     const l = d.state[chat] ?? [];
     await d.tg.send(chat, l.length ? l.map((w) => `<code>${w.address}</code>`).join("\n") : "You are not watching any wallets. Use /watch &lt;address&gt;.");
     return;
   }
-  if (cmd === "/watch") {
+  if (cmd === "/watch" || cmd === "/start") {
     if (!isSolanaAddress(arg)) { await d.tg.send(chat, "Usage: /watch &lt;solana address&gt;"); return; }
     const added = addWallet(d.state, chat, arg);
     d.save();
@@ -107,7 +111,11 @@ export async function startBot(token: string, ctx: AdapterContext): Promise<void
   console.log(`bot @${me.username} polling`);
   const mins = Number(process.env.WATCH_INTERVAL_MIN) || 15;
   let beating = false;
-  setInterval(() => { if (beating) return; beating = true; heartbeat(d).finally(() => { beating = false; }); }, mins * 60_000);
+  setInterval(() => {
+    if (beating) return; beating = true;
+    const t0 = new Date(); mark("lastSweepStartedAt", t0);
+    heartbeat(d).finally(() => { beating = false; bump("sweeps"); mark("lastSweepAt"); bump("walletsSwept", Object.values(state).reduce((n, l) => n + l.length, 0)); });
+  }, mins * 60_000);
   let offset = 0;
   for (;;) {
     try {

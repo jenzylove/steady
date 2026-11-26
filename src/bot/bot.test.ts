@@ -51,3 +51,22 @@ describe("input guards", () => {
     expect(isSolanaAddress("hello")).toBe(false);
   });
 });
+
+describe("start payload", () => {
+  it("t.me/steadysol_bot?start=<wallet> watches that wallet; bare /start welcomes; stats hold counts only", async () => {
+    const { handleText, WELCOME } = await import("./bot.js");
+    const { botStats } = await import("./stats.js");
+    const sent: string[] = [];
+    const state = {} as Record<string, { address: string; seen: Record<string, Severity> }[]>;
+    const d: any = { tg: { send: async (_c: string, t: string) => { sent.push(t); } }, ctx: {}, state, save: () => {}, run: async () => advice([]) };
+    await handleText(d, "42", "/start");
+    expect(sent.at(-1)).toBe(WELCOME);
+    await handleText(d, "42", `/start ${W}`);
+    expect(state["42"]?.map((w) => w.address)).toEqual([W]);
+    expect(sent.some((t) => t.startsWith("Watching."))).toBe(true);
+    const s = botStats(state as any);
+    expect(s).toMatchObject({ chats: 1, walletsWatched: 1 });
+    expect(JSON.stringify(s)).not.toContain(W);
+    expect(JSON.stringify(s)).not.toContain("42\"");
+  });
+});

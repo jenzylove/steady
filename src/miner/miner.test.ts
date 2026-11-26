@@ -121,6 +121,10 @@ describe("http server", () => {
       expect(((await ok.json()) as any).liquidity_usd).toBeGreaterThan(1_000_000);
       expect((await fetch(`${base}/liquidity?pool=${ORCA}&chain=ethereum`)).status).toBe(400);
       expect((await fetch(`${base}/nope`)).status).toBe(404);
+      await fetch(`${base}/liquidity?pool=${encodeURIComponent("Orca SOL/USDC")}&chain=solana`, { headers: { "x-steady-board": "1" } });
+      const st = (await (await fetch(`${base}/stats`)).json()) as any;
+      expect(st).toMatchObject({ answers: 1, refused: 1, boardReads: 1 });
+      expect(typeof st.lastAnswerAt).toBe("string");
     } finally {
       server.close();
     }
