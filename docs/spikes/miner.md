@@ -51,9 +51,9 @@ Orca response body, abbreviated: `{"pool_name":"Orca SOL/USDC 0.04%","dex":"orca
 ## Registration
 `miner/steady-liquidity.yaml` follows the V2 spec read from anjoman.ai/docs/miners/yaml-config: only the keys the closed schema allows, `endpoints[].intents`, `params.query.required`, `input_schema` and `output_schema` at top level, `intent_mapping` for `LIQUIDITY_DEPTH_VERIFY_GENERAL` (`liquidity_usd` read from path `liquidity_usd`), `semantics.supported_intents`, and a `limitations` entry. `id: 7420317` and `slug: steady-liquidity` were free in `/api/miners` on 2026-11-26. `base_url` is the placeholder `https://miner.steady.jdollar.site`. Minimum price 10000 and the intent list are passed on chain by the script (the YAML has no price field).
 
-SHA-256 of the YAML now: `0xcccf12dbf36b5028165c48a29c75e8d4afe4e30858a49bfc150b7b8c46a5edca` (changes with any edit).
+SHA-256 of the YAML at spike time: `0xcccf12db…edca`. The served file now hashes to `0x18e2082fe84e8f80f451d0cd58ce5041e5e120f8df4053c461509c890135b000` (`curl -s https://steady-miner-production.up.railway.app/steady-liquidity.yaml | sha256sum`).
 
-`npx tsx scripts/register-miner.ts [yaml-url] [--update <id>] [--fee 0x..] [--send]` reads `getCanonicalIntents`, `minerBondParams`, `minerBondOf`, `quoteMinerBond`, the test USDC balance and allowance, then simulates `registerMiner` (or `updateMiner`) with eth_call and prints the would-be id or the revert. It sends only with `--send`. It was never run with `--send`.
+`npx tsx scripts/register-miner.ts [yaml-url] [--update <id>] [--fee 0x..] [--send]` reads `getCanonicalIntents`, `minerBondParams`, `minerBondOf`, `quoteMinerBond`, the test USDC balance and allowance, then simulates `registerMiner` (or `updateMiner`) with eth_call and prints the would-be id or the revert. It sends only with `--send`. It was later run with `--send`: registration 6203 (tx `0x5b5ecaabba244b5242070d27473956ad8bae6ef87c4c93d41238fb3ad943af81`), Telegraph miner id 7420317, active.
 
 Dry run on 2026-11-26 (Diamond 0x72a70e94..., Sepolia, with the placeholder URL above):
 - intent `LIQUIDITY_DEPTH_VERIFY_GENERAL` is canonical: true
