@@ -78,7 +78,7 @@ export async function buildFix(ctx: AdapterContext, wallet: string, fix: FixSpec
     return { fix, builder: "none", unsupported: `no builder yet for ${fix.action} on ${fix.protocol}` };
   } catch (e) {
     const msg = String(e);
-    if (/429|Too Many Requests/i.test(msg)) return { fix, builder: "error", unsupported: "Solana's data provider is busy right now. Wait a minute and prepare it again." };
+    if (/429|Too Many Requests|8100002/i.test(msg)) return { fix, builder: "error", unsupported: "Solana's data provider is busy right now. Wait a minute and prepare it again." };
     return { fix, builder: "error", unsupported: msg.slice(0, 200) };
   }
 }

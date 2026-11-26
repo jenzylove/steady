@@ -2,7 +2,7 @@
 // When the wallet lacks the debt token, repay with collateral: a flash loan repays the debt, part of the collateral is
 // withdrawn and sold on Jupiter, and the flash loan is paid back, all in one transaction. Never signs or sends.
 import {
-  address, createSolanaRpcFromTransport, createDefaultRpcTransport, createNoopSigner, pipe, createTransactionMessage, setTransactionMessageFeePayer,
+  address, createSolanaRpcFromTransport, createNoopSigner, pipe, createTransactionMessage, setTransactionMessageFeePayer,
   setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstructions, compileTransaction,
   getBase64EncodedWireTransaction, compressTransactionMessageUsingAddressLookupTables, AccountRole, none,
   type Address, type Instruction,
@@ -27,22 +27,21 @@ const toIx = (i: JupIx): Instruction => ({
 const markets = new Map<string, { at: number; m: KaminoMarket }>();
 const lutCache = new Map<string, { at: number; luts: Address[] }>();
 
-// Helius rate limits bursts: market loads fan out many reads, so cap concurrency and retry 429s with backoff.
+// Helius rate limits bursts: market loads fan out many reads, so cap concurrency and send every call through
+// ctx.fetch, which waits and retries on HTTP 429.
 let active = 0; const waiting: (() => void)[] = [];
 const rpcs = new Map<string, ReturnType<typeof createSolanaRpcFromTransport>>();
 function rpcFor(ctx: AdapterContext) {
   const hit = rpcs.get(ctx.heliusRpcUrl); if (hit) return hit;
-  const base = createDefaultRpcTransport({ url: ctx.heliusRpcUrl });
-  const transport = (async (req: Parameters<typeof base>[0]) => {
+  const transport = (async ({ payload, signal }: { payload: unknown; signal?: AbortSignal }) => {
     if (active >= 4) await new Promise<void>((r) => waiting.push(r));
     active++;
     try {
-      for (let i = 0; ; i++) {
-        try { return await base(req); }
-        catch (e) { if (i >= 5 || !/429|Too Many/.test(String(e))) throw e; await new Promise((r) => setTimeout(r, 400 * 2 ** i)); }
-      }
+      const res = await ctx.fetch(ctx.heliusRpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload, (_k, v) => (typeof v === "bigint" ? Number(v) : v)), signal: signal ?? null });
+      if (!res.ok) throw new Error(`Solana RPC HTTP ${res.status}`);
+      return await res.json();
     } finally { active--; waiting.shift()?.(); }
-  }) as typeof base;
+  }) as never;
   const rpc = createSolanaRpcFromTransport(transport);
   rpcs.set(ctx.heliusRpcUrl, rpc);
   return rpc;
@@ -158,7 +157,7 @@ export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligatio
     const tables = await fetchAllAddressLookupTable(rpc as never, (r.addressLookupTableAddresses ?? []).map((a) => address(a)));
     return [{ preActionIxs: (r.setupInstructions ?? []).map(toIx), swapIxs: [toIx(r.swapInstruction)], lookupTables: tables, quote: { priceAInB: price(q, inputs.inputMint, inputs.outputMint), quoteResponse: q } }];
   };
-  const tries: [(k: Address[]) => number, boolean][] = [[(k) => Math.max(20, 60 - k.length), false], [() => 24, false], [() => 16, false], [() => 64, true]];
+  const tries: [(k: Address[]) => number, boolean][] = [[(k) => Math.max(20, 60 - k.length), false], [() => 24, false], [() => 16, false], [() => 16, true], [() => 12, false], [() => 10, true]];
   let built: { tx: string; sell: string } | undefined, lastErr = "no swap route from collateral to debt";
   for (const [c, d] of tries) {
     cap = c; direct = d;
