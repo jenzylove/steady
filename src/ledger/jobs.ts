@@ -6,6 +6,7 @@ import { Ledger } from "./store.js";
 import { settleDue } from "./settle.js";
 import { askFrontier, hasFrontierKey } from "./frontier.js";
 import { makeAll } from "./make.js";
+import { anchorPending } from "./anchor.js";
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), "[ledger]", ...a);
 
@@ -38,6 +39,10 @@ export function startLedgerJobs(ctx: AdapterContext): void {
     try {
       const f = await fillFrontier(ledger, ctx);
       if (f) log("frontier answers added", f);
+      if (process.env.TELEGRAPH_PAYER_KEY && process.env.LEDGER_ANCHOR !== "off") {
+        const a = await anchorPending(ledger).catch((e) => { log("anchor failed", String(e).slice(0, 160)); return []; });
+        for (const x of a) log("anchored batch", x.batch, x.count, "calls", x.txHash);
+      }
       const r = await settleDue(ledger, ctx);
       if (r.settled.length || r.failed.length) log("settled", r.settled.length, "failed", r.failed.length);
       const last = ledger.load().map((e) => e.prediction.madeAt).sort().at(-1);

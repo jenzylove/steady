@@ -4,6 +4,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { Prediction } from "../engine/advice/types.js";
 import { sign, type Signed } from "../memo/memo.js";
+import type { Anchor } from "./anchor.js";
 
 export const DEFAULT_LEDGER_PATH = resolve(process.cwd(), "data", "ledger.jsonl");
 
@@ -24,12 +25,15 @@ export interface SettlementBody {
 
 export type LedgerLine =
   | { type: "prediction"; memo: Signed<Prediction>; supersedes?: string }
-  | { type: "settlement"; memo: Signed<SettlementBody> };
+  | { type: "settlement"; memo: Signed<SettlementBody> }
+  | { type: "anchor"; anchor: Anchor };
 
 export interface LedgerEntry {
   /** Latest version of the prediction, with the outcome merged in once settled. */
   prediction: Prediction;
   memo: Signed<Prediction>;
+  /** The first signed version, made before any later update (for example adding the frontier answer). Its digest is what gets anchored. */
+  firstMemo: Signed<Prediction>;
   settlement?: Signed<SettlementBody> | undefined;
 }
 
@@ -45,8 +49,10 @@ export class Ledger {
     const byId = new Map<string, LedgerEntry>();
     const settlements: Signed<SettlementBody>[] = [];
     for (const line of this.lines()) {
-      if (line.type === "prediction") byId.set(line.memo.body.id, { prediction: line.memo.body, memo: line.memo });
-      else settlements.push(line.memo);
+      if (line.type === "prediction") {
+        const prev = byId.get(line.memo.body.id);
+        byId.set(line.memo.body.id, { prediction: line.memo.body, memo: line.memo, firstMemo: prev?.firstMemo ?? line.memo });
+      } else if (line.type === "settlement") settlements.push(line.memo);
     }
     for (const s of settlements) {
       const e = byId.get(s.body.predictionId);
@@ -59,6 +65,14 @@ export class Ledger {
 
   get(id: string): LedgerEntry | undefined {
     return this.load().find((e) => e.prediction.id === id);
+  }
+
+  anchors(): Anchor[] {
+    return this.lines().flatMap((l) => (l.type === "anchor" ? [l.anchor] : []));
+  }
+
+  writeAnchor(anchor: Anchor): void {
+    this.write({ type: "anchor", anchor });
   }
 
   private write(line: LedgerLine): void {
