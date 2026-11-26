@@ -70,3 +70,19 @@ describe("start payload", () => {
     expect(JSON.stringify(s)).not.toContain("42\"");
   });
 });
+
+describe("limits", () => {
+  it("caps watched wallets per chat, including start links, and one off checks per day", async () => {
+    const { handleText, MAX_WATCH, allowCheck, CHECKS_PER_DAY } = await import("./bot.js");
+    const sent: string[] = [];
+    const state: Record<string, { address: string; seen: Record<string, Severity> }[]> = { c: Array.from({ length: MAX_WATCH }, (_, i) => ({ address: `${i}`.padEnd(32, "1"), seen: {} })) };
+    const d: any = { tg: { send: async (_c: string, t: string) => { sent.push(t); } }, ctx: {}, state, save: () => {}, run: async () => advice([]) };
+    await handleText(d, "c", `/start ${W}`);
+    expect(state.c).toHaveLength(MAX_WATCH);
+    expect(sent.at(-1)).toContain("the most one chat can");
+    const day = new Date("2026-11-26T10:00:00Z");
+    for (let i = 0; i < CHECKS_PER_DAY; i++) expect(allowCheck("x", day)).toBe(true);
+    expect(allowCheck("x", day)).toBe(false);
+    expect(allowCheck("x", new Date("2026-11-27T00:00:01Z"))).toBe(true);
+  });
+});

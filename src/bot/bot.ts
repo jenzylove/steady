@@ -39,6 +39,17 @@ export class Tg {
   }
 }
 
+export const MAX_WATCH = 5;
+export const CHECKS_PER_DAY = 20;
+const checksToday = new Map<string, { day: string; n: number }>();
+/** One off reports per chat per UTC day. Watching is not counted; the sweep runs on its own timer. */
+export function allowCheck(chat: string, now = new Date()): boolean {
+  const day = now.toISOString().slice(0, 10);
+  const e = checksToday.get(chat);
+  if (!e || e.day !== day) { checksToday.set(chat, { day, n: 1 }); return true; }
+  e.n += 1; return e.n <= CHECKS_PER_DAY;
+}
+
 export interface BotDeps { tg: Tg; ctx: AdapterContext; state: WatchState; save: () => void; run?: (w: string, o?: { telegraph?: boolean }) => Promise<Advice> }
 
 export async function handleText(d: BotDeps, chat: string, text: string): Promise<void> {
@@ -50,6 +61,7 @@ export async function handleText(d: BotDeps, chat: string, text: string): Promis
   const arg = rest[0] ?? "";
   const report = async (addr: string) => {
     if (!isSolanaAddress(addr)) { await d.tg.send(chat, "That is not a Solana address."); return; }
+    if (!allowCheck(chat)) { await d.tg.send(chat, `That is ${CHECKS_PER_DAY} one off checks today, the daily limit. Wallets you watch are still checked on schedule.`); return; }
     await d.tg.send(chat, "Reading the wallet, one moment.");
     try { await d.tg.send(chat, formatReport(await run(addr))); }
     catch (e) { await d.tg.send(chat, "Could not read that wallet right now. Try again in a minute."); console.error("advise failed", String(e).slice(0, 120)); }
@@ -64,6 +76,11 @@ export async function handleText(d: BotDeps, chat: string, text: string): Promis
   }
   if (cmd === "/watch" || cmd === "/start") {
     if (!isSolanaAddress(arg)) { await d.tg.send(chat, "Usage: /watch &lt;solana address&gt;"); return; }
+    const mine = d.state[chat] ?? [];
+    if (!mine.some((w) => w.address === arg) && mine.length >= MAX_WATCH) {
+      await d.tg.send(chat, `You are watching ${MAX_WATCH} wallets, the most one chat can. Send /unwatch &lt;address&gt; to free a slot, or /list to see them.`);
+      return;
+    }
     const added = addWallet(d.state, chat, arg);
     d.save();
     await d.tg.send(chat, added ? "Watching. I will message you only when something serious appears or gets worse." : "Already watching that wallet.");
