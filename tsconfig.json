@@ -43,4 +43,6 @@
 
     "moduleResolution": "nodenext",
   }
+,
+  "exclude": ["web", "node_modules", "dist"]
 }
