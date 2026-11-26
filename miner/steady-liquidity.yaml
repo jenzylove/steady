@@ -1,0 +1,135 @@
+version: "1"
+kind: miner
+id: 7420317
+slug: steady-liquidity
+protocol: generic
+name: Steady Solana Pool Liquidity
+base_url: https://miner.steady.jdollar.site
+description: >
+  Total liquidity in US dollars of a Solana DEX pool, computed from the pool's
+  own token vaults. Reads Orca Whirlpool, Raydium (AMM v4, CLMM, CPMM) and
+  Meteora DLMM pools directly from Solana mainnet at a stated slot, adds up
+  both vault balances (less fees the program has set aside) and prices each
+  token in USD. The answer carries the slot, both token amounts and prices.
+  Accepts a pool address, or a name such as "Orca SOL/USDC", "Raydium SOL/USDC"
+  or "Meteora SOL/USDC 0.1%" for the top pools. A pool on another chain, a name
+  it does not know, or a pool with a token that has no USD price is refused with
+  a reason; it never guesses a number.
+
+docs:
+  repository: https://github.com/jenzylove/steady
+
+auth:
+  type: none
+
+rate_limit_per_sec: 5
+cache_ttl_sec: 30
+circuit_threshold: 5
+circuit_cooldown_seconds: 30
+
+limitations:
+  - code: MAX_PARAM_LENGTH
+    message: pool must be at most 256 characters
+    param: pool
+    property: length
+    value_num: 256
+    operator: lte
+
+endpoints:
+  - path: /liquidity
+    external_path: /liquidity
+    method: GET
+    description: >
+      Total liquidity in US dollars of one Solana DEX pool (Orca, Raydium or
+      Meteora): the pool's two vault balances read from chain at one slot, each
+      priced in USD. Returns liquidity_usd, both token amounts and prices, and
+      the slot. Only chain solana is served; other chains, unknown names and
+      unpriced tokens are refused with a reason.
+    intents: [LIQUIDITY_DEPTH_VERIFY_GENERAL]
+    params:
+      query:
+        required:
+          - name: pool
+            type: string
+            intents: ["*"]
+            description: >-
+              The pool's Solana address (base58), or its DEX, token pair and
+              optionally fee tier, such as "Orca SOL/USDC", "Raydium SOL/USDC"
+              or "Meteora SOL/USDC 0.1%". At most 256 characters.
+          - name: chain
+            type: string
+            intents: ["*"]
+            description: >-
+              Chain the pool is on. Only "solana" is served; anything else is
+              refused with HTTP 400.
+
+input_schema:
+  type: object
+  properties:
+    pool:
+      type: string
+      maxLength: 256
+      description: "Solana pool address, or a name such as 'Orca SOL/USDC'."
+    chain:
+      type: string
+      description: "solana"
+
+output_schema:
+  type: object
+  properties:
+    answer:
+      type: string
+      description: Plain-language statement of the pool's reserves and their USD value.
+    liquidity_usd:
+      type: number
+      description: "Total liquidity of the pool in US dollars at the stated slot (both vault balances priced in USD), 6 decimals."
+    pool_address:
+      type: string
+      description: Solana address of the pool read.
+    pool_name:
+      type: string
+      description: "DEX, token pair and fee tier, or the token pair when the address is not in the name table."
+    chain:
+      type: string
+      description: solana
+    dex:
+      type: string
+      description: One of orca-whirlpool, raydium-clmm, raydium-amm-v4, raydium-cpmm, meteora-dlmm.
+    amount_a:
+      type: number
+      description: Token A held by the pool, in whole tokens.
+    amount_b:
+      type: number
+      description: Token B held by the pool, in whole tokens.
+    price_a:
+      type: number
+      description: USD price used for token A.
+    price_b:
+      type: number
+      description: USD price used for token B.
+    slot:
+      type: integer
+      description: Solana slot the vault balances were read at.
+    fetched_at:
+      type: string
+      description: Time of the read, ISO 8601 UTC.
+
+intent_mapping:
+  LIQUIDITY_DEPTH_VERIFY_GENERAL:
+    endpoint: /liquidity
+    input:
+      pool:
+        from: pool
+        how: "Copy the pool's Solana address if given, otherwise its DEX, token pair and fee tier exactly as asked, such as Orca SOL/USDC."
+      chain:
+        from: chain
+        how: "Lower-case chain name; use solana."
+    output:
+      liquidity_usd: { path: liquidity_usd, unit: USD }
+
+semantics:
+  signal_mapping:
+    label_field: pool_name
+    reason_field: answer
+  supported_intents:
+    - LIQUIDITY_DEPTH_VERIFY_GENERAL
