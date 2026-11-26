@@ -144,3 +144,4 @@ table.board pre.logs { max-height: 380px; overflow: auto; }
 .how { list-style: none; padding: 0; margin: 0; }
 .how li { display: flex; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); color: var(--ink2); }
 .how li .mono { font-size: 12px; padding-top: 4px; }
+.two > * { min-width: 0; }
