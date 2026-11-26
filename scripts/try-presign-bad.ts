@@ -1,0 +1,14 @@
+import { PublicKey, TransactionMessage, VersionedTransaction, Keypair } from "@solana/web3.js";
+import { createApproveInstruction } from "@solana/spl-token";
+import { makeContext } from "../src/engine/context.js";
+import { presign } from "../src/presign/check.js";
+const W = process.argv[2]!; const ctx = makeContext();
+const r = await fetch(ctx.heliusRpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getTokenAccountsByOwner", params: [W, { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" }, { encoding: "jsonParsed" }] }) });
+const ta = ((await r.json()) as any).result.value[0].pubkey as string;
+const bh = ((await (await fetch(ctx.heliusRpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getLatestBlockhash", params: [] }) })).json()) as any).result.value.blockhash;
+const drainer = Keypair.generate().publicKey;
+const ix = createApproveInstruction(new PublicKey(ta), drainer, new PublicKey(W), 10n ** 15n);
+const msg = new TransactionMessage({ payerKey: new PublicKey(W), recentBlockhash: bh, instructions: [ix] }).compileToV0Message();
+const tx = Buffer.from(new VersionedTransaction(msg).serialize()).toString("base64");
+const out = await presign(ctx, tx, W, { telegraph: false });
+console.log(JSON.stringify({ verdict: out.verdict, reasons: out.reasons }, null, 1));
