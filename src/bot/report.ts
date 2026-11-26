@@ -20,8 +20,18 @@ export function fixLink(wallet: string, findingId: string): string {
 function fmtUsd(n: number): string {
   return "$" + n.toLocaleString("en-US", { maximumFractionDigits: n >= 100 ? 0 : 2 });
 }
+const LABELS: Record<string, [string, string?]> = {
+  health: ["health"], collateralUsd: ["collateral", "$"], debtUsd: ["debt", "$"], price: ["price now", "$"],
+  liquidationPrice: ["liquidation price", "$"], distancePct: ["distance", "%"], protocolHealth: ["protocol says"],
+  sharePct: ["share", "%"], usd: ["value", "$"], amount: ["amount"], apy: ["APY", "%"], yearlyUsd: ["a year", "$"], idleUsd: ["idle", "$"],
+};
 function numbersLine(f: Finding): string {
-  return Object.entries(f.numbers).slice(0, 4).map(([k, v]) => `${k} ${typeof v === "number" ? v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v}`).join(", ");
+  const fmt = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return Object.entries(f.numbers).filter(([k]) => LABELS[k]).slice(0, 4).map(([k, v]) => {
+    const [label, unit] = LABELS[k]!;
+    const val = typeof v === "number" ? fmt(v) : v;
+    return unit === "$" ? `${label} $${val}` : unit === "%" ? `${label} ${val}%` : `${label} ${val}`;
+  }).join(" · ");
 }
 
 export function findingBlock(wallet: string, f: Finding): string {
