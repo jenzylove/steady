@@ -54,4 +54,16 @@ describe("news judge", () => {
     expect(judgeNews("kamino", "Kamino paused withdrawals after an oracle exploit on its JLP market.").keyword).toBe("paused");
     expect(judgeNews("kamino", "Kamino grew deposits this week. Another protocol was hacked.").keyword).toBeUndefined();
   });
+  it("ignores a miner restating the query before listing unrelated headlines (live false alarms, Nov 26)", () => {
+    const k = "Recent coverage of kamino Solana exploit hack pause depeg incident this week (3 articles) includes: 'Malware Alert: Hackers Exploit Claude Code Leak' and 'Bitcoin slips below $90K'.";
+    expect(judgeNews("kamino", k).keyword).toBeUndefined();
+    const m = "Recent coverage of marginfi Solana exploit hack this week includes: 'Huge $24 Million Hack on AFX Trade: Arbitrum Bridge Keys Compromised'.";
+    expect(judgeNews("marginfi", m).keyword).toBeUndefined();
+  });
+  it("still flags a quoted headline that names the protocol, apostrophes included", () => {
+    const t = "Recent coverage of kamino news includes: 'Kamino's JLP market paused after oracle exploit' and 'SOL rallies'.";
+    const v = judgeNews("kamino", t);
+    expect(v.keyword).toBe("paused");
+    expect(v.headline).toContain("JLP market");
+  });
 });

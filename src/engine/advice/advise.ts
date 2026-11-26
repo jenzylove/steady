@@ -1,4 +1,5 @@
 // advise(wallet): read the whole wallet, apply rules, add verified opportunities and Telegraph checks on the protocols held.
+import { scrub } from "../adapters/util.js";
 import type { AdapterContext, AdapterResult, Source } from "../types.js";
 import type { Advice, Evidence, Finding } from "./types.js";
 import { readPortfolio } from "../portfolio.js";
@@ -49,13 +50,15 @@ export async function rateOpportunities(r: AdapterResult, ctx: AdapterContext, o
       cost += q.costUsd;
       for (const a of q.answers) evidence.push(toEvidence(a, a.result ? `supply APY ${String(a.result.supply_apy)}%` : a.error ?? "no answer"));
     }
+    const buildable = rates.filter((x) => x.symbol === sym && x.protocol === "kamino" && x.apy >= 1).sort((a, b) => b.apy - a.apy)[0];
     const yearly = (p.usd! * best.apy) / 100;
     out.push({
       id: `opportunity:better_rate:${p.mint}`, kind: "opportunity", code: "better_rate", severity: "info",
       title: `${p.amount.toFixed(2)} ${sym} is idle; ${best.protocol} pays ${best.apy.toFixed(2)}% (about $${yearly.toFixed(0)} a year)`,
       numbers: { symbol: sym, idleUsd: Math.round(p.usd! * 100) / 100, apy: Math.round(best.apy * 100) / 100, protocol: best.protocol, yearlyUsd: Math.round(yearly) },
       sources: [...p.sources, best.source], evidence,
-      fix: { action: "deposit", protocol: best.protocol, mintIn: p.mint!, amount: p.amount, reason: `Deposit idle ${sym} into ${best.protocol} at ${best.apy.toFixed(2)}%` },
+      // Only Kamino deposits have a builder today, so the prepared fix uses the best Kamino rate even when another market pays more.
+      ...(buildable ? { fix: { action: "deposit", protocol: "kamino", mintIn: p.mint!, amount: p.amount, reason: `Deposit idle ${sym} into Kamino at ${buildable.apy.toFixed(2)}%` } } : {}),
     });
   }
   return { findings: out, cost };
@@ -64,15 +67,30 @@ export async function rateOpportunities(r: AdapterResult, ctx: AdapterContext, o
 const ALERT_WORDS = /\b(exploit|exploited|hack|hacked|drained|paused|halt(ed)?|depeg(ged)?|insolven|bad debt|vulnerab|attack)\w*/i;
 const OFF_TOPIC = /closest match only|not an exact answer|no (recent )?(news|results) found|insufficient data/i;
 
-/** Code decides whether a news answer is a credible incident report about this protocol. */
-export function judgeNews(protocol: string, text: string): { credible: boolean; keyword?: string; reason?: string } {
+/** Code decides whether a news answer is a credible incident report about this protocol.
+ *  Miners often restate the query ("Recent coverage of kamino exploit ...") before listing headlines, so only the
+ *  reported items count: quoted headlines when the answer has them, otherwise sentences that do not restate the query. */
+export function judgeNews(protocol: string, text: string): { credible: boolean; keyword?: string; headline?: string; reason?: string } {
   if (!text.trim()) return { credible: false, reason: "empty answer" };
   if (OFF_TOPIC.test(text)) return { credible: false, reason: "miner says it is not an exact answer" };
-  const name = new RegExp(protocol.replace(/[-]/g, "[ -]?"), "i");
-  const sentences = text.split(/(?<=[.!?])\s+/);
-  const hit = sentences.find((s) => name.test(s) && ALERT_WORDS.test(s));
-  if (!hit) return { credible: true, reason: "no incident reported" };
-  return { credible: true, keyword: (hit.match(ALERT_WORDS)?.[0] ?? "").toLowerCase() };
+  const name = new RegExp(`\\b${protocol.replace(/[-]/g, "[ -]?")}\\b`, "i");
+  const quoted = [...text.matchAll(/(?:^|[\s:(\[])["'“‘]([^\n]{12,300}?)["'”’](?=[\s,.;:)\]]|$)/g)].map((m) => m[1]!);
+  const restates = /\b(recent )?(coverage|news|results?|search(ed)?|query|asked) (of|for|about|on)\b/i;
+  const items = quoted.length > 0 ? quoted : text.split(/(?<=[.!?])\s+/).filter((s) => !restates.test(s));
+  const hit = items.find((s) => name.test(s) && ALERT_WORDS.test(s));
+  if (!hit) return { credible: true, reason: "no incident reported about this protocol" };
+  return { credible: true, keyword: (hit.match(ALERT_WORDS)?.[0] ?? "").toLowerCase(), headline: hit.trim().slice(0, 200) };
+}
+
+// One paid news answer per protocol is reused for 3 hours, so the 15 minute watch sweep does not rebuy the same news.
+const NEWS_TTL_MS = 3 * 3600_000;
+const newsCache = new Map<string, { at: number; answer: Answer }>();
+async function newsFor(proto: string): Promise<Answer & { cached?: boolean }> {
+  const hit = newsCache.get(proto);
+  if (hit && Date.now() - hit.at < NEWS_TTL_MS) return { ...hit.answer, cached: true };
+  const a = await ask("NEWS_SEARCH_GENERAL", { query: `${proto} Solana DeFi protocol news this week` });
+  if (a.ok) newsCache.set(proto, { at: Date.now(), answer: a });
+  return a;
 }
 
 /** Ask Telegraph news miners about each protocol the wallet uses; raise an alert only when the answer itself reports an incident about that protocol. */
@@ -82,14 +100,14 @@ export async function protocolAlerts(r: AdapterResult): Promise<{ findings: Find
   let cost = 0;
   const checks: Evidence[] = [];
   await Promise.all(protocols.map(async (proto) => {
-    const a = await ask("NEWS_SEARCH_GENERAL", { query: `${proto} Solana exploit hack pause depeg incident this week` });
-    cost += a.costUsd ?? 0;
+    const a = await newsFor(proto);
+    if (!a.cached) cost += a.costUsd ?? 0;
     const text = String(a.result?.answer ?? a.result?.brief ?? "");
     const verdict = judgeNews(proto, text);
     const ev = toEvidence({ ...a, used: verdict.credible, rejectReason: verdict.reason }, text.slice(0, 280) || a.error || "no answer");
     checks.push(ev);
     if (a.ok && verdict.credible && verdict.keyword) {
-      out.push({ id: `risk:protocol_alert:${proto}`, kind: "risk", code: "protocol_alert", severity: "medium", title: `Recent news reports a ${verdict.keyword} involving ${proto}: read before adding more`, numbers: { protocol: proto, keyword: verdict.keyword }, sources: [], evidence: [ev] });
+      out.push({ id: `risk:protocol_alert:${proto}`, kind: "risk", code: "protocol_alert", severity: "medium", title: `A news report links ${proto} to an incident (${verdict.keyword}): read it before adding more`, numbers: { protocol: proto, keyword: verdict.keyword, headline: verdict.headline ?? "" }, sources: [], evidence: [ev] });
     }
   }));
   return { findings: out, cost, checks };
@@ -101,8 +119,8 @@ export async function advise(wallet: string, ctx: AdapterContext, opts: { telegr
   const findings: Finding[] = [...loanFindings(r.loans), ...holdingFindings(r.positions)];
   let cost = 0;
   const [rates, alerts] = await Promise.all([
-    rateOpportunities(r, ctx, { telegraph }).catch((e) => { r.gaps.push(`rates: ${String(e).slice(0, 120)}`); return { findings: [], cost: 0 }; }),
-    telegraph ? protocolAlerts(r).catch((e) => { r.gaps.push(`protocol alerts: ${String(e).slice(0, 120)}`); return { findings: [], cost: 0, checks: [] as Evidence[] }; }) : Promise.resolve({ findings: [], cost: 0, checks: [] as Evidence[] }),
+    rateOpportunities(r, ctx, { telegraph }).catch((e) => { r.gaps.push(`rates: ${scrub(String(e)).slice(0, 120)}`); return { findings: [], cost: 0 }; }),
+    telegraph ? protocolAlerts(r).catch((e) => { r.gaps.push(`protocol alerts: ${scrub(String(e)).slice(0, 120)}`); return { findings: [], cost: 0, checks: [] as Evidence[] }; }) : Promise.resolve({ findings: [], cost: 0, checks: [] as Evidence[] }),
   ]);
   findings.push(...rates.findings, ...alerts.findings);
   cost += rates.cost + alerts.cost;

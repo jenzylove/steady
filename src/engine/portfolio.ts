@@ -1,4 +1,5 @@
 // Read every adapter for a wallet in parallel; never throws, failures become gaps.
+import { scrub } from "./adapters/util.js";
 import type { Adapter, AdapterContext, AdapterResult } from "./types.js";
 import { walletAdapter } from "./adapters/wallet.js";
 import { stakeAdapter } from "./adapters/stake.js";
@@ -21,7 +22,7 @@ export async function readPortfolio(wallet: string, ctx: AdapterContext, adapter
   const res = await Promise.allSettled(adapters.map((a) => a.read(wallet, ctx)));
   res.forEach((r, i) => {
     if (r.status === "fulfilled") { out.positions.push(...r.value.positions); out.loans.push(...r.value.loans); out.gaps.push(...r.value.gaps); }
-    else out.gaps.push(`${adapters[i]?.id}: ${String(r.reason).slice(0, 200)}`);
+    else out.gaps.push(`${adapters[i]?.id}: ${scrub(String(r.reason)).slice(0, 200)}`);
   });
   return out;
 }

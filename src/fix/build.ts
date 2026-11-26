@@ -1,4 +1,5 @@
 // Build the exact transaction for a fix and simulate it on mainnet before anyone signs. Never signs or sends.
+import { scrub } from "../engine/adapters/util.js";
 import { PublicKey, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import { createRevokeInstruction, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import type { AdapterContext, Position } from "../engine/types.js";
@@ -77,7 +78,7 @@ export async function buildFix(ctx: AdapterContext, wallet: string, fix: FixSpec
     }
     return { fix, builder: "none", unsupported: `no builder yet for ${fix.action} on ${fix.protocol}` };
   } catch (e) {
-    const msg = String(e);
+    const msg = scrub(String(e));
     if (/429|Too Many Requests|8100002/i.test(msg)) return { fix, builder: "error", unsupported: "Solana's data provider is busy right now. Wait a minute and prepare it again." };
     return { fix, builder: "error", unsupported: msg.slice(0, 200) };
   }

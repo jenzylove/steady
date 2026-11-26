@@ -25,9 +25,16 @@ export interface Answer {
   error?: string;
 }
 
+// Spend resets at the start of each UTC day, so the cap is a real daily cap and a busy day never stops purchases for good.
 let spentUsd = 0;
+let spentDay = new Date().toISOString().slice(0, 10);
+let capHitAt: string | null = null;
 const CAP_USD = Number(process.env.TELEGRAPH_DAILY_CAP_USD ?? "3");
-export function spend() { return { spentUsd, capUsd: CAP_USD }; }
+function rollDay() {
+  const day = new Date().toISOString().slice(0, 10);
+  if (day !== spentDay) { spentDay = day; spentUsd = 0; capHitAt = null; }
+}
+export function spend() { rollDay(); return { day: spentDay, spentUsd: Math.round(spentUsd * 1000) / 1000, capUsd: CAP_USD, capHitAt }; }
 
 let payFetch: typeof fetch | null = null;
 function payer(): typeof fetch {
@@ -44,7 +51,11 @@ function payer(): typeof fetch {
 /** One paid answer. minerId pins a miner; omit it to let Telegraph route to its top ranked miner. Never throws. */
 export async function ask(intent: string, params: Record<string, unknown>, minerId?: string): Promise<Answer> {
   const t0 = Date.now();
-  if (spentUsd >= CAP_USD) return { intent, params, ok: false, status: 0, ms: 0, error: `daily cap $${CAP_USD} reached` };
+  rollDay();
+  if (spentUsd >= CAP_USD) {
+    if (!capHitAt) { capHitAt = new Date().toISOString(); console.warn(`[telegraph] daily cap $${CAP_USD} reached at ${capHitAt}`); }
+    return { intent, params, ok: false, status: 0, ms: 0, error: `daily cap $${CAP_USD} reached; resets at 00:00 UTC` };
+  }
   try {
     const res = await payer()(`${NODE}/engine/v1/ask${minerId ? `/${minerId}` : ""}`, {
       method: "POST",

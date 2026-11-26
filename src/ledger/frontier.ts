@@ -62,5 +62,6 @@ export async function askFrontier(p: Prediction, now: Date = new Date(), call: F
   const question = p.params["question"];
   if (typeof question !== "string") throw new Error(`prediction ${p.id} has no params.question`);
   const out = parseFrontier(await call(frontierPrompt(question, now)));
-  return { model: FRONTIER_MODEL, verdict: out.verdict, value: out.value, why: out.why };
+  const model = call === defaultCall && !process.env.ANTHROPIC_API_KEY ? `${FRONTIER_MODEL} via OpenRouter` : FRONTIER_MODEL;
+  return { model, verdict: out.verdict, value: out.value, why: out.why };
 }

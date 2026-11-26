@@ -27,7 +27,28 @@ const KNOWN_PROGRAMS: Record<string, string> = {
   KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD: "Kamino Lend",
   whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc: "Orca",
   MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA: "marginfi",
+  Stake11111111111111111111111111111111111111: "Stake",
 };
+
+const SYSTEM = "11111111111111111111111111111111";
+const TOKEN_PROGRAMS = new Set(["TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"]);
+const STAKE = "Stake11111111111111111111111111111111111111";
+
+/** Instructions that change who controls an account, read straight from the instruction bytes (no RPC). */
+export function controlChanges(tx: VersionedTransaction, signer: string): string[] {
+  const keys = tx.message.staticAccountKeys.map((k) => k.toBase58());
+  const out: string[] = [];
+  for (const ix of tx.message.compiledInstructions) {
+    const program = keys[ix.programIdIndex];
+    const d = ix.data;
+    const u32 = d.length >= 4 ? (d[0]! | (d[1]! << 8) | (d[2]! << 16) | (d[3]! << 24)) >>> 0 : -1;
+    const first = keys[ix.accountKeyIndexes[0] ?? -1];
+    if (program === SYSTEM && (u32 === 1 || u32 === 10) && first === signer) out.push("It reassigns your wallet account to another program, which would take over the whole wallet");
+    else if (program && TOKEN_PROGRAMS.has(program) && d[0] === 6) out.push("It changes the authority of a token account (SetAuthority)");
+    else if (program === STAKE && [1, 8, 10, 11].includes(u32)) out.push("It moves the authority of a stake account");
+  }
+  return [...new Set(out)];
+}
 
 async function rpc<T>(ctx: AdapterContext, method: string, params: unknown[]): Promise<T> {
   const res = await ctx.fetch(ctx.heliusRpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
@@ -42,6 +63,7 @@ export async function presign(ctx: AdapterContext, txBase64: string, signer: str
   const keys = tx.message.staticAccountKeys.map((k) => k.toBase58());
   const programs = [...new Set(tx.message.compiledInstructions.map((ix) => keys[ix.programIdIndex]).filter((x): x is string => !!x))];
   const reasons: string[] = [];
+  const control = controlChanges(tx, signer);
 
   // Signer's token accounts before.
   const before = await rpc<{ value: { pubkey: string; account: { data: { parsed: { info: any } } } }[] }>(ctx, "getTokenAccountsByOwner", [signer, { programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" }, { encoding: "jsonParsed" }]);
@@ -64,7 +86,10 @@ export async function presign(ctx: AdapterContext, txBase64: string, signer: str
   const ok = sim.value.err === null;
   const signerChanges: BalanceChange[] = [];
   const ownerChanges: string[] = [];
+  const bigOut: string[] = [];
   const after = sim.value.accounts ?? [];
+  const signerOwnerAfter = (after[0] as any)?.owner as string | undefined;
+  if (signerOwnerAfter && signerOwnerAfter !== SYSTEM) control.push(`After this transaction your wallet account would be owned by ${signerOwnerAfter.slice(0, 4)}…${signerOwnerAfter.slice(-4)}, not the System program: a full takeover`);
   if (after[0]) {
     const d = (after[0].lamports - solBefore) / 1e9;
     if (Math.abs(d) > 1e-9) signerChanges.push({ mint: "SOL", symbol: "SOL", delta: d });
@@ -78,6 +103,7 @@ export async function presign(ctx: AdapterContext, txBase64: string, signer: str
     if (!info) return;
     const d = Number(info.tokenAmount?.uiAmount ?? 0) - preAmt;
     if (Math.abs(d) > 1e-12) signerChanges.push({ mint: pre.mint, delta: d });
+    if (d < 0 && preAmt > 0 && -d >= preAmt * 0.5) bigOut.push(`${Math.round((-d / preAmt) * 100)}% of one token balance (${pre.mint.slice(0, 4)}…)`);
     if (info.owner && info.owner !== signer) ownerChanges.push(`${a.pubkey} owner becomes ${info.owner}`);
     if (info.delegate && info.delegate !== pre.delegate) ownerChanges.push(`${a.pubkey} gives ${info.delegate} the right to move ${info.delegatedAmount?.uiAmountString ?? "tokens"}`);
   });
@@ -89,6 +115,9 @@ export async function presign(ctx: AdapterContext, txBase64: string, signer: str
   const writable = [...keys.slice(0, writableSigned), ...keys.slice(header.numRequiredSignatures, header.numRequiredSignatures + writableUnsigned)];
   const recipients = writable.filter((k) => k !== signer && !programs.includes(k) && !accts.some((a) => a.pubkey === k)).slice(0, 8);
 
+  const solOut = signerChanges.find((c) => c.mint === "SOL" && c.delta < 0);
+  if (solOut && solBefore > 0 && -solOut.delta * 1e9 >= solBefore * 0.5) bigOut.push(`${Math.round((-solOut.delta * 1e9 / solBefore) * 100)}% of your SOL`);
+  if (control.length) reasons.push(...control);
   if (!ok) reasons.push(`The transaction would fail: ${JSON.stringify(sim.value.err)}`);
   if (ownerChanges.length) reasons.push(`It hands control of your tokens to someone else: ${ownerChanges.join("; ")}`);
   const unknown = programs.filter((p) => !KNOWN_PROGRAMS[p]);
@@ -100,6 +129,10 @@ export async function presign(ctx: AdapterContext, txBase64: string, signer: str
     if (twin) reasons.push(`Recipient ${r.slice(0, 6)}…${r.slice(-6)} imitates ${twin.slice(0, 6)}…${twin.slice(-6)} from your history (address poisoning)`);
   }
 
+  const known = new Set(opts.history ?? []);
+  const fresh = recipients.filter((r) => !known.has(r));
+  if (bigOut.length && fresh.length) reasons.push(`It sends ${bigOut.join(" and ")} toward an address that is not in your history: ${fresh.slice(0, 2).map((r) => r.slice(0, 6) + "…" + r.slice(-4)).join(", ")}`);
+
   const evidence: Evidence[] = [];
   if (opts.telegraph !== false) {
     await Promise.all(recipients.slice(0, 3).map(async (r) => {
@@ -110,7 +143,7 @@ export async function presign(ctx: AdapterContext, txBase64: string, signer: str
     }));
   }
 
-  const block = !ok || ownerChanges.length > 0 || reasons.some((x) => /sanctions|poisoning/.test(x));
+  const block = !ok || ownerChanges.length > 0 || control.length > 0 || reasons.some((x) => /sanctions|poisoning/.test(x));
   const verdict = block ? "block" : reasons.length ? "caution" : "ok";
   return { verdict, reasons, simulation: { ok, err: ok ? undefined : JSON.stringify(sim.value.err), logsTail: (sim.value.logs ?? []).slice(-6) }, signerChanges, ownerChanges, programs: programs.map((p) => KNOWN_PROGRAMS[p] ?? p), recipients, evidence };
 }

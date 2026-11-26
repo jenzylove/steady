@@ -10,3 +10,4 @@ secrets/
 
 data/
 *.tsbuildinfo
+!src/engine/__fixtures__/wallet-*.json
