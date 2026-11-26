@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import type { AdapterContext } from "../engine/types.js";
 import { Ledger } from "./store.js";
 import { settleDue } from "./settle.js";
-import { askFrontier } from "./frontier.js";
+import { askFrontier, hasFrontierKey } from "./frontier.js";
 import { makeAll } from "./make.js";
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), "[ledger]", ...a);
@@ -19,7 +19,7 @@ export function seedIfEmpty(ledger: Ledger): void {
 }
 
 export async function fillFrontier(ledger: Ledger, ctx: AdapterContext): Promise<number> {
-  if (!process.env.ANTHROPIC_API_KEY) return 0;
+  if (!hasFrontierKey()) return 0;
   let n = 0;
   for (const e of ledger.load()) {
     if (e.settlement || e.prediction.frontier) continue;

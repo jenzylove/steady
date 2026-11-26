@@ -40,8 +40,25 @@ export const callAnthropic: FrontierCall = async (prompt) => {
   return (j.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
 };
 
+/** Same model through OpenRouter, for when the Anthropic console will not take a card. */
+export const callOpenRouter: FrontierCall = async (prompt) => {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error("OPENROUTER_API_KEY is not set");
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model: "anthropic/claude-sonnet-5.5", max_tokens: 500, messages: [{ role: "user", content: prompt }] }),
+  });
+  if (!res.ok) throw new Error(`OpenRouter http ${res.status}: ${(await res.text()).replace(key, "<key>").slice(0, 200)}`);
+  const j: any = await res.json();
+  return String(j.choices?.[0]?.message?.content ?? "");
+};
+
+export const hasFrontierKey = () => Boolean(process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY);
+export const defaultCall: FrontierCall = (prompt) => (process.env.ANTHROPIC_API_KEY ? callAnthropic(prompt) : callOpenRouter(prompt));
+
 /** Ask the frontier model the question stored in params.question. */
-export async function askFrontier(p: Prediction, now: Date = new Date(), call: FrontierCall = callAnthropic): Promise<NonNullable<Prediction["frontier"]>> {
+export async function askFrontier(p: Prediction, now: Date = new Date(), call: FrontierCall = defaultCall): Promise<NonNullable<Prediction["frontier"]>> {
   const question = p.params["question"];
   if (typeof question !== "string") throw new Error(`prediction ${p.id} has no params.question`);
   const out = parseFrontier(await call(frontierPrompt(question, now)));
