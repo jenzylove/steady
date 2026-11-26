@@ -11,4 +11,11 @@ else if (which === "bot") {
     res.end(JSON.stringify(stats ? botStats() : { status: "ok", service: "steady-bot" }));
   }).listen(Number(process.env.PORT ?? 8789));
   await import("../scripts/bot.js");
-} else await import("./miner/server.js");
+} else {
+  // The miner module only listens when run directly, so start it here.
+  const { createMinerServer } = await import("./miner/server.js");
+  const { makeContext } = await import("./engine/context.js");
+  const ctx = makeContext();
+  const port = Number(process.env.PORT ?? 8787);
+  createMinerServer({ ctx: () => ctx }).listen(port, () => console.log(`steady liquidity miner on :${port}`));
+}
