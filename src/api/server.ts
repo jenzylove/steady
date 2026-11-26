@@ -6,7 +6,8 @@ import { readPortfolio } from "../engine/portfolio.js";
 import { advise } from "../engine/advice/advise.js";
 import { buildFix } from "../fix/build.js";
 import { presign, isAddress } from "../presign/check.js";
-import { sign } from "../memo/memo.js";
+import { sign, verify, type Signed } from "../memo/memo.js";
+import { privateKeyToAccount } from "viem/accounts";
 import { spend } from "../telegraph/client.js";
 import type { FixSpec } from "../engine/advice/types.js";
 import { startLedgerJobs } from "../ledger/jobs.js";
@@ -71,12 +72,22 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { result: r, memo: await sign({ wallet, result: r }) }, origin);
     }
 
+    if (req.method === "POST" && url.pathname === "/verify") {
+      // Recomputes the digest from the body and recovers the signer; valid only if both hold and the signer is Steady's key.
+      const { memo } = (await body(req)) as { memo?: Signed<unknown> };
+      if (!memo?.body || !memo.digest || !memo.signature || !memo.signer) return send(res, 400, { error: "memo with body, digest, signer and signature is required" }, origin);
+      const steady = process.env.MEMO_SIGNER_KEY ? privateKeyToAccount(process.env.MEMO_SIGNER_KEY as `0x${string}`).address : undefined;
+      const intact = await verify(memo).catch(() => false);
+      const fromSteady = !!steady && memo.signer.toLowerCase() === steady.toLowerCase();
+      return send(res, 200, { valid: intact && fromSteady, intact, fromSteady, steadySigner: steady }, origin);
+    }
+
     if (req.method === "GET" && url.pathname === "/ledger") {
       const { Ledger } = await import("../ledger/store.js");
       return send(res, 200, { entries: new Ledger().load() }, origin);
     }
 
-    return send(res, 404, { error: "routes: POST /advise, POST /fix, POST /presign, GET /ledger, GET /health" }, origin);
+    return send(res, 404, { error: "routes: POST /advise, POST /fix, POST /presign, POST /verify, GET /ledger, GET /health" }, origin);
   } catch (e) {
     return send(res, 500, { error: String(e).slice(0, 300) }, origin);
   }
