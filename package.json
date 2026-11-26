@@ -6,7 +6,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "miner": "tsx src/miner/server.ts",
-    "start": "tsx src/miner/server.ts"
+    "start": "tsx src/miner/server.ts",
+    "api": "tsx src/api/server.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.11",
