@@ -103,6 +103,8 @@ export function createMinerServer(deps: MinerDeps): Server {
   const handle = createHandler(deps);
   const clock = deps.now ?? Date.now;
   const stats: MinerStats = { since: new Date(clock()).toISOString(), answers: 0, refused: 0, boardReads: 0, lastAnswerAt: null };
+  const perIp = new Map<string, { minute: number; n: number }>();
+  const PER_IP_PER_MIN = Number(process.env.MINER_PER_IP_PER_MIN ?? "240");
   return createServer(async (req, res) => {
     const send = (r: Reply) => {
       res.writeHead(r.status, { "content-type": "application/json", "cache-control": "no-store" });
@@ -121,6 +123,13 @@ export function createMinerServer(deps: MinerDeps): Server {
       }
       if (url.pathname === "/stats") return send({ status: 200, body: { ...stats } });
       if (url.pathname === "/liquidity") {
+        // Generous per IP ceiling: Telegraph's node and the web board stay far below it; a script hammering uncached pools does not.
+        const ip = String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "?").split(",").map((s) => s.trim()).filter(Boolean).at(-1) ?? "?";
+        const minute = Math.floor(clock() / 60_000);
+        const seen = perIp.get(ip);
+        if (!seen || seen.minute !== minute) perIp.set(ip, { minute, n: 1 });
+        else if (++seen.n > PER_IP_PER_MIN) return send({ status: 429, body: { error: "rate_limited", reason: `more than ${PER_IP_PER_MIN} requests a minute from one address` } });
+        if (perIp.size > 5000) perIp.clear();
         const r = await handle(url.searchParams.get("pool"), url.searchParams.get("chain"));
         if (req.headers["x-steady-board"]) stats.boardReads++;
         else if (r.status === 200) { stats.answers++; stats.lastAnswerAt = new Date(clock()).toISOString(); }
