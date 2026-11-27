@@ -86,3 +86,13 @@ describe("limits", () => {
     expect(allowCheck("x", new Date("2026-11-27T00:00:01Z"))).toBe(true);
   });
 });
+
+import { chatsFor, formatGuardEvent } from "./guard-events.js";
+describe("guard events in Telegram", () => {
+  it("tells every chat watching the wallet, with the Solscan link when it fired", () => {
+    const state = { "1": [{ address: "W1", seen: {} }], "2": [{ address: "W2", seen: {} }], "3": [{ address: "W1", seen: {} }] };
+    expect(chatsFor(state, "W1")).toEqual(["1", "3"]);
+    const t = formatGuardEvent({ wallet: "WalletAddr1234", obligation: "OB", line: 1.1, at: "x", kind: "fired", note: "health 1.09 reached the line 1.1; rescue confirmed", signature: "SIG" });
+    expect(t).toContain("rescued your loan"); expect(t).toContain("solscan.io/tx/SIG");
+  });
+});

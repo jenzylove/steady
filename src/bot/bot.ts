@@ -4,6 +4,7 @@ import type { Advice } from "../engine/advice/types.js";
 import type { AdapterContext } from "../engine/types.js";
 import { formatAlert, formatReport } from "./report.js";
 import { bump, mark } from "../stats/counters.js";
+import { startGuardRelay } from "./guard-events.js";
 import { addWallet, diffFindings, isAlertable, loadWatch, removeWallet, saveWatch, type WatchState } from "./watch.js";
 
 const B58 = /^[1-9A-HJ-NP-Za-km-z]+$/;
@@ -126,6 +127,7 @@ export async function startBot(token: string, ctx: AdapterContext): Promise<void
   const d: BotDeps = { tg, ctx, state, save: () => saveWatch(state) };
   const me = await tg.call<{ username: string }>("getMe");
   console.log(`bot @${me.username} polling`);
+  startGuardRelay(state, (chat, text) => tg.send(chat, text));
   const mins = Number(process.env.WATCH_INTERVAL_MIN) || 15;
   let beating = false;
   setInterval(() => {
