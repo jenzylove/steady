@@ -11,7 +11,7 @@ export interface Stats {
   bot: ({ ok: true; at: string; chats: number; walletsWatched: number; sweepEveryMin: number; lastSweepAt: string | null; sweeps: number; walletsSwept: number; alertsSent: number; reportsSent: number; telegraphPurchases: number; telegraphSpendUsd: number; countingSince: string }) | Down;
   miner: ({ ok: true; at: string; since: string; answers: number; refused: number; boardReads: number; lastAnswerAt: string | null }) | Down;
   node: ({ ok: true; at: string; found: true; id: string; status: string; registeredAt: string | null; requestsServed: number; scored: boolean; rank: number | null; score: number | null; epoch: number | null; rivals: number } | { ok: true; at: string; found: false; rivals: number }) | Down;
-  evaluator: ({ ok: true; at: string; rows: number; admitted: number; byIntent: Record<string, number>; lastAt: string | null }) | Down;
+  evaluator: ({ ok: true; at: string; rows: number; eligible: number; byIntent: Record<string, number>; lastAt: string | null }) | Down;
 }
 
 /** Live /stats, refreshed every `everyMs`. */

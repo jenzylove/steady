@@ -54,7 +54,7 @@ On Oct 10 2025 about $19B of leveraged positions were wiped out in hours, $1.7B 
 | `SANCTIONS_SCREENING_MATCH_GENERAL` for recipients before signing | [src/presign/check.ts](src/presign/check.ts) |
 | Receipt hash, signal hash and cost kept in every memo | [src/memo/memo.ts](src/memo/memo.ts) |
 | Miner for `LIQUIDITY_DEPTH_VERIFY_GENERAL`, registration 6203, active | [src/miner/](src/miner/), [miner/steady-liquidity.yaml](miner/steady-liquidity.yaml) |
-| 21 signed evaluation rows for three Solana intents, all admitted | [docs/evaluator.md](docs/evaluator.md), [scripts/evalpool-make.ts](scripts/evalpool-make.ts) |
+| 21 signed evaluation rows for three Solana intents, all eligible on the node | [docs/evaluator.md](docs/evaluator.md), [scripts/evalpool-make.ts](scripts/evalpool-make.ts) |
 
 **Missions:** Web3 Native and DeFi, Personal Agent, Asset Management.
 

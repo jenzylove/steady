@@ -20,7 +20,7 @@ describe("stats", () => {
   it("finds our miner and counts rivals", () => {
     const all = [{ id: "7420317", activation_status: "active", supported_intents: ["LIQUIDITY_DEPTH_VERIFY_GENERAL"], scored: false }, { id: "9", supported_intents: ["LIQUIDITY_DEPTH_VERIFY_GENERAL"] }, { id: "1", supported_intents: [] }];
     expect(nodeMinerBlock(all)).toMatchObject({ found: true, status: "active", requestsServed: 0, scored: false, rank: null, rivals: 2 });
-    expect(evalBlock({ rows: [{ intent_id: "A", status: "admitted" }, { intent_id: "A", status: "pending" }] })).toMatchObject({ rows: 2, admitted: 1, byIntent: { A: 2 } });
+    expect(evalBlock({ rows: [{ intent_id: "A", status: "eligible" }, { intent_id: "A", status: "pending" }] })).toMatchObject({ rows: 2, eligible: 1, byIntent: { A: 2 } });
   });
   it("never throws when sources are down, and keeps the last good value", async () => {
     let up = true;

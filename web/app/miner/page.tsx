@@ -160,7 +160,7 @@ export default function MinerPage() {
               Steady also wrote evaluation rows for Telegraph: questions where the better answer is the chain truth at a stated slot, and the worse answer is a mistake a paid miner really made, like the $3.5M above.
             </p>
             <p className="big" style={{ marginTop: 16 }}>
-              {ev ? <><span className="mono vial-text">{ev.admitted}</span> of <span className="mono">{ev.rows}</span> rows admitted</> : "…"}
+              {ev ? <><span className="mono vial-text">{ev.eligible}</span> of <span className="mono">{ev.rows}</span> rows eligible</> : "…"}
             </p>
             {ev && <p className="mono mute" style={{ fontSize: 12, marginTop: 6 }}>{Object.entries(ev.byIntent).map(([k, n]) => `${k.replace(/_GENERAL$/, "").toLowerCase().replace(/_/g, " ")} ${n}`).join(" · ")} · read {ago(ev.at)}</p>}
             <p style={{ marginTop: 12, fontSize: 14 }}><a className="hash" href={`${NODE}/api/evalpool/submissions/mine?submitter=${SUBMITTER}`} target="_blank" rel="noreferrer">See the node&apos;s own record</a></p>

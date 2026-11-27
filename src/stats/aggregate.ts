@@ -75,7 +75,7 @@ export function evalBlock(j: any) {
   const rows: any[] = Array.isArray(j?.rows) ? j.rows : [];
   const byIntent: Record<string, number> = {};
   for (const r of rows) byIntent[r.intent_id] = (byIntent[r.intent_id] ?? 0) + 1;
-  return { rows: rows.length, admitted: rows.filter((r) => r.status === "admitted").length, byIntent, lastAt: rows.map((r) => r.updated_at ?? r.created_at).filter(Boolean).sort().at(-1) ?? null };
+  return { rows: rows.length, eligible: rows.filter((r) => r.status === "eligible").length, byIntent, lastAt: rows.map((r) => r.updated_at ?? r.created_at).filter(Boolean).sort().at(-1) ?? null };
 }
 
 /** Builds /stats with per source caches, so a slow node never slows the page. */

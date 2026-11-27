@@ -30,7 +30,7 @@ function cells(s: Stats, full: boolean): Cell[] {
   out.push({ k: "Miner answers", v: m ? n(m.answers) : "?", d: m ? `to outside callers since its restart ${ago(m.since)}${node ? `; ${n(node.requestsServed)} routed by Telegraph so far` : ""}` : "the miner did not answer just now", href: "/miner" });
   if (full || !b) {
     const e = s.evaluator.ok ? s.evaluator : null;
-    if (e) out.push({ k: "Evaluation rows admitted", v: `${e.admitted}/${e.rows}`, d: `on the Telegraph node, read ${ago(e.at)}`, href: "/miner" });
+    if (e) out.push({ k: "Evaluation rows eligible", v: `${e.eligible}/${e.rows}`, d: `on the Telegraph node, read ${ago(e.at)}`, href: "/miner" });
   }
   if (full) {
     out.push({ k: "Wallets read", v: n(s.api.walletChecks), d: `full reads since ${day(s.api.countingSince)}` });
