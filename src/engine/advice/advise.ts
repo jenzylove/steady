@@ -11,14 +11,33 @@ const LENDING_PROJECTS: Record<string, string> = { "kamino-lend": "kamino", "mar
 
 export interface Rate { protocol: string; symbol: string; apy: number; tvlUsd: number; pool: string; source: Source }
 
-/** Public supply rates for stablecoins on Solana lending markets (DefiLlama, which reads the protocols). */
+const KAMINO_MAIN_METRICS = "https://api.kamino.finance/kamino-market/7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF/reserves/metrics";
+
+/** Supply rates of the Kamino main market, from Kamino's own API: the market the deposit fix pays into. The deepest reserve wins per token. */
+export async function kaminoMainRates(ctx: AdapterContext): Promise<Rate[]> {
+  const res = await ctx.fetch(KAMINO_MAIN_METRICS);
+  const list = (await res.json()) as { reserve: string; liquidityToken: string; supplyApy: string; totalSupplyUsd: string }[];
+  const at = ctx.now().toISOString();
+  const best = new Map<string, Rate>();
+  for (const m of list) {
+    const apy = Number(m.supplyApy) * 100, tvlUsd = Number(m.totalSupplyUsd);
+    if (!["USDC", "USDT", "PYUSD", "USDS"].includes(m.liquidityToken) || !(tvlUsd > 1_000_000) || !Number.isFinite(apy)) continue;
+    if ((best.get(m.liquidityToken)?.tvlUsd ?? 0) >= tvlUsd) continue;
+    best.set(m.liquidityToken, { protocol: "kamino", symbol: m.liquidityToken, apy, tvlUsd, pool: m.reserve, source: { kind: "protocol_api", ref: `${KAMINO_MAIN_METRICS} reserve ${m.reserve}`, fetchedAt: at } });
+  }
+  return [...best.values()];
+}
+
+/** Public supply rates for stablecoins on Solana lending markets. Kamino comes from its main market (where the deposit fix pays in); the others from DefiLlama, which reads the protocols. */
 export async function stableRates(ctx: AdapterContext): Promise<Rate[]> {
   const res = await ctx.fetch(LLAMA_POOLS);
   const json = (await res.json()) as { data: any[] };
   const at = ctx.now().toISOString();
-  return json.data
-    .filter((p) => p.chain === "Solana" && LENDING_PROJECTS[p.project] && ["USDC", "USDT", "PYUSD", "USDS"].includes(p.symbol) && p.tvlUsd > 1_000_000 && typeof p.apy === "number")
+  const others = json.data
+    .filter((p) => p.chain === "Solana" && LENDING_PROJECTS[p.project] && p.project !== "kamino-lend" && ["USDC", "USDT", "PYUSD", "USDS"].includes(p.symbol) && p.tvlUsd > 1_000_000 && typeof p.apy === "number")
     .map((p) => ({ protocol: LENDING_PROJECTS[p.project]!, symbol: p.symbol, apy: p.apy, tvlUsd: p.tvlUsd, pool: p.pool, source: { kind: "price_api" as const, ref: `${LLAMA_POOLS} pool ${p.pool}`, fetchedAt: at } }));
+  const kamino = await kaminoMainRates(ctx).catch(() => [] as Rate[]);
+  return [...kamino, ...others];
 }
 
 export function toEvidence(a: Answer & { role?: "answer" | "verify" | "compare"; used?: boolean; rejectReason?: string | undefined }, summary: string): Evidence {
@@ -84,12 +103,13 @@ export function judgeNews(protocol: string, text: string): { credible: boolean; 
 
 // One paid news answer per protocol is reused for 3 hours, so the 15 minute watch sweep does not rebuy the same news.
 const NEWS_TTL_MS = 3 * 3600_000;
-const newsCache = new Map<string, { at: number; answer: Answer }>();
+export const newsCache = new Map<string, { at: number; answer: Answer }>();
 async function newsFor(proto: string): Promise<Answer & { cached?: boolean }> {
   const hit = newsCache.get(proto);
   if (hit && Date.now() - hit.at < NEWS_TTL_MS) return { ...hit.answer, cached: true };
   const a = await ask("NEWS_SEARCH_GENERAL", { query: `${proto} Solana DeFi protocol news this week` });
-  if (a.ok) newsCache.set(proto, { at: Date.now(), answer: a });
+  // Only an answer that has text and that code judged usable is worth reusing for 3 hours; an empty or off topic one is bought again next time.
+  if (a.ok && judgeNews(proto, String(a.result?.answer ?? a.result?.brief ?? "")).credible && String(a.result?.answer ?? a.result?.brief ?? "").trim()) newsCache.set(proto, { at: Date.now(), answer: a });
   return a;
 }
 
