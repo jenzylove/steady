@@ -1,4 +1,5 @@
-// Steady API: advice, fix building, check before signing, ledger, miner status. Read only on Solana; never signs or sends.
+// Steady API: advice, fix building, check before signing, ledger, miner status, and Guard. Never holds a key; the only
+// transaction it ever sends is a rescue the owner signed in advance through Guard.
 import "dotenv/config";
 import { scrub } from "../engine/adapters/util.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -15,6 +16,7 @@ import { startLedgerJobs } from "../ledger/jobs.js";
 import { Ledger } from "../ledger/store.js";
 import { makeStats } from "../stats/aggregate.js";
 import { bump } from "../stats/counters.js";
+import { guardRoute, startGuardJobs } from "../guard/routes.js";
 
 const ctx = makeContext();
 const ORIGINS = (process.env.ALLOWED_ORIGINS ?? "*").split(",");
@@ -87,6 +89,9 @@ const server = createServer(async (req, res) => {
     if (req.method === "OPTIONS") return send(res, 204, {}, origin);
     if (url.pathname === "/health") return send(res, 200, { ok: true, spend: spend() }, origin);
 
+    const guarded = await guardRoute(ctx, req, url, () => body(req), () => allow(req));
+    if (guarded) return send(res, guarded.status, guarded.body, origin);
+
     if (req.method === "POST" && url.pathname === "/advise") {
       const { wallet } = await body(req);
       if (!isAddress(wallet)) return send(res, 400, { error: "not a Solana address" }, origin);
@@ -146,3 +151,4 @@ const server = createServer(async (req, res) => {
 const port = Number(process.env.PORT ?? 8788);
 server.listen(port, () => console.log(`steady api on :${port}`));
 if (process.env.LEDGER_JOBS !== "off") startLedgerJobs(ctx);
+if (process.env.GUARD_JOBS !== "off") startGuardJobs(ctx);

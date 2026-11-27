@@ -3,7 +3,7 @@
 // withdrawn and sold on Jupiter, and the flash loan is paid back, all in one transaction. Never signs or sends.
 import {
   address, createSolanaRpcFromTransport, createNoopSigner, pipe, createTransactionMessage, setTransactionMessageFeePayer,
-  setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstructions, compileTransaction,
+  setTransactionMessageLifetimeUsingBlockhash, setTransactionMessageLifetimeUsingDurableNonce, appendTransactionMessageInstructions, compileTransaction,
   getBase64EncodedWireTransaction, compressTransactionMessageUsingAddressLookupTables, AccountRole, none,
   type Address, type Instruction,
 } from "@solana/kit";
@@ -80,16 +80,20 @@ async function marketLuts(ctx: AdapterContext, reserves: string[]): Promise<Addr
   return luts;
 }
 
-async function compile(ctx: AdapterContext, wallet: string, ixs: Instruction[], luts: Address[], extra: { address: Address; data: { addresses: Address[] } }[] = []): Promise<string> {
+/** A durable nonce lifetime: the signed transaction stays valid until the nonce advances, so a rescue can be signed now and sent later. */
+export interface NonceLifetime { account: string; authority: string; value: string }
+
+async function compile(ctx: AdapterContext, wallet: string, ixs: Instruction[], luts: Address[], extra: { address: Address; data: { addresses: Address[] } }[] = [], nonce?: NonceLifetime): Promise<string> {
   const rpc = rpcFor(ctx);
   const tables = luts.length ? await fetchAllAddressLookupTable(rpc as never, luts) : [];
   const map: Record<string, Address[]> = {};
   for (const t of [...tables, ...extra]) map[t.address] = t.data.addresses as Address[];
-  const { value: bh } = await rpc.getLatestBlockhash().send();
+  const base = pipe(createTransactionMessage({ version: 0 }), (m) => setTransactionMessageFeePayer(address(wallet), m));
+  const timed = nonce
+    ? setTransactionMessageLifetimeUsingDurableNonce({ nonce: nonce.value as never, nonceAccountAddress: address(nonce.account), nonceAuthorityAddress: address(nonce.authority) }, base)
+    : setTransactionMessageLifetimeUsingBlockhash((await rpc.getLatestBlockhash().send()).value, base);
   const msg = pipe(
-    createTransactionMessage({ version: 0 }),
-    (m) => setTransactionMessageFeePayer(address(wallet), m),
-    (m) => setTransactionMessageLifetimeUsingBlockhash(bh, m),
+    timed as typeof base,
     (m) => appendTransactionMessageInstructions(ixs, m),
     (m) => compressTransactionMessageUsingAddressLookupTables(m, map as never),
   );
@@ -103,13 +107,18 @@ function walletBalance(positions: Position[], mint: string): number {
   return positions.filter((p) => p.kind === "token" && p.mint === mint).reduce((s, p) => s + p.amount, 0);
 }
 
-async function jupQuote(ctx: AdapterContext, inputMint: string, outputMint: string, amount: string, maxAccounts: number, direct: boolean) {
-  const q = (await (await ctx.fetch(`${JUP}/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=50&maxAccounts=${maxAccounts}${direct ? "&onlyDirectRoutes=true" : ""}`)).json()) as { inAmount?: string; outAmount?: string; error?: string };
+async function jupQuote(ctx: AdapterContext, inputMint: string, outputMint: string, amount: string, maxAccounts: number, direct: boolean, slippageBps = 50) {
+  const q = (await (await ctx.fetch(`${JUP}/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${slippageBps}&maxAccounts=${maxAccounts}${direct ? "&onlyDirectRoutes=true" : ""}`)).json()) as { inAmount?: string; outAmount?: string; error?: string };
   if (!q.outAmount || !q.inAmount) throw new Error(`Jupiter quote failed: ${q.error ?? "no route"}`);
   return q as { inAmount: string; outAmount: string };
 }
 
-export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligationAddr: string, debtReserveAddr: string, debtMint: string, symbol: string, amount: number, positions: Position[]): Promise<KaminoBuilt> {
+/** Rescue options: sign now with a durable nonce, and size a collateral sale so it still covers the debt after the collateral falls atDropPct. */
+export interface RescueOpts { nonce?: NonceLifetime; atDropPct?: number; forceCollateral?: boolean }
+
+export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligationAddr: string, debtReserveAddr: string, debtMint: string, symbol: string, amount: number, positions: Position[], opts: RescueOpts = {}): Promise<KaminoBuilt> {
+  const drop = Math.min(Math.max(opts.atDropPct ?? 0, 0), 0.5);
+  const slipBps = 50 + Math.round(drop * 10_000);
   const marketAddr = positions.find((p) => p.account === obligationAddr)?.extra?.market as string | undefined;
   if (!marketAddr) return { route: "repay", unsupported: "loan not found in this read" };
   const market = await loadMarket(ctx, marketAddr);
@@ -123,12 +132,12 @@ export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligatio
   const reserves = [...new Set(legs.map((p) => p.extra?.reserve as string).filter(Boolean))];
   const luts = await marketLuts(ctx, reserves);
 
-  if (walletBalance(positions, debtMint) >= amount) {
+  if (!opts.forceCollateral && walletBalance(positions, debtMint) >= amount) {
     const action = await KaminoAction.buildRepayTxns({
       kaminoMarket: market, amount: String(Math.round(amount * 10 ** reserve.stats.decimals)), reserveAddress: reserve.address, owner, obligation: ob,
       useV2Ixs: true, scopeRefreshConfig: undefined, currentLedgerInstant: await getCurrentLedgerInstant(rpc as never), includeAtaIxs: true,
     });
-    return { route: "repay", transaction: await compile(ctx, wallet, KaminoAction.actionToIxs(action), luts), summary: `Repays ${+amount.toFixed(4)} ${symbol} from your wallet.` };
+    return { route: "repay", transaction: await compile(ctx, wallet, KaminoAction.actionToIxs(action), luts, [], opts.nonce), summary: `Repays ${+amount.toFixed(4)} ${symbol} from your wallet.` };
   }
 
   // Not enough of the debt token in the wallet: pay it from the largest collateral in the same loan.
@@ -137,7 +146,7 @@ export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligatio
   // Shorter Jupiter routes on each retry until the whole transaction fits in one Solana transaction.
   let cap = (klend: Address[]) => Math.max(20, 60 - klend.length), direct = false;
   const quote = async (inputs: { inputAmountLamports: Decimal; inputMint: Address; outputMint: Address }, klend: Address[]) =>
-    jupQuote(ctx, inputs.inputMint, inputs.outputMint, inputs.inputAmountLamports.floor().toString(), cap(klend), direct);
+    jupQuote(ctx, inputs.inputMint, inputs.outputMint, inputs.inputAmountLamports.floor().toString(), cap(klend), direct, slipBps);
   // priceAInB is whole token B per whole token A, so scale the raw Jupiter amounts by each mint's decimals.
   const collReserve = market.getReserveByAddress(address(coll.extra!.reserve as string));
   const dec = new Map<string, number>([[reserve.getLiquidityMint(), reserve.stats.decimals], ...(collReserve ? [[collReserve.getLiquidityMint(), collReserve.stats.decimals] as [string, number]] : [])]);
@@ -148,7 +157,8 @@ export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligatio
   };
   const quoter = async (inputs: { inputAmountLamports: Decimal; inputMint: Address; outputMint: Address }, klend: Address[]) => {
     const q = await quote(inputs, klend);
-    return { priceAInB: price(q, inputs.inputMint, inputs.outputMint), quoteResponse: q };
+    // Price the collateral as if it had already fallen atDropPct, so the sale is big enough at the trigger price.
+    return { priceAInB: price(q, inputs.inputMint, inputs.outputMint).mul(1 - drop), quoteResponse: q };
   };
   const swapper = async (inputs: { inputAmountLamports: Decimal; inputMint: Address; outputMint: Address }, klend: Address[]) => {
     const q = await quote(inputs, klend);
@@ -170,7 +180,7 @@ export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligatio
       const best = res[0];
       if (!best) continue;
       const sell = best.swapInputs.inputAmountLamports.div(new Decimal(10).pow(collReserve?.stats.decimals ?? 6)).toDecimalPlaces(4).toString();
-      built = { tx: await compile(ctx, wallet, best.ixs, luts, best.lookupTables), sell };
+      built = { tx: await compile(ctx, wallet, best.ixs, luts, best.lookupTables, opts.nonce), sell };
       break;
     } catch (e) { lastErr = String((e as Error).message ?? e).slice(0, 200); if (!/byte limit|no route|Jupiter/.test(lastErr)) break; }
   }
