@@ -37,7 +37,7 @@ On Oct 10 2025 about $19B of leveraged positions were wiped out in hours, $1.7B 
 
 ## What it does
 
-1. **Reads the whole wallet from mainnet.** Tokens, staked SOL and LSTs, loans on Kamino, marginfi and Save, LP on Orca, Raydium and Meteora, perps on Drift and Jupiter. Loan health matches Kamino's own number within 0.5%.
+1. **Reads the whole wallet from mainnet.** Tokens, staked SOL and LSTs, loans on Kamino, marginfi and Save, LP on Orca, Raydium and Meteora, perps on Drift and Jupiter. Every loan shows Steady's own health next to the number the protocol reports, so you can see they agree.
 2. **Buys what the chain cannot know.** News about each protocol the wallet uses, sanctions screening for recipients, and supply rates, paid per answer through Telegraph with x402. Code judges every answer, and the ones that do not hold up are shown struck out with the reason.
 3. **Builds the fix.** For the sample loan, Steady uses Kamino's SDK to flash borrow, repay the USDT, withdraw JLP and swap it back in one transaction, so no spare tokens are needed. It runs on mainnet first without sending, then Phantom asks you to approve.
 4. **Checks before you sign.** Paste or build a transaction and Steady simulates it against your real accounts. It blocks any change of owner or authority over your wallet, token or stake accounts, flags large outflows to addresses that are not in your history, and screens recipients.
