@@ -7,6 +7,8 @@ import Reveal from "@/components/Reveal";
 import RunningNow from "@/components/RunningNow";
 
 interface Anchor { batch: string; root: string; count: number; txHash: string; chain: string; at: string }
+interface EdgeLoan { obligation: string; owner: string; firstSeenAt: string; firstHealth: number; debtUsd: number; liquidated?: { at: string; signature: string } }
+interface Edge { tracked: number; trackedDebtUsd: number; liquidated: number; liquidatedDebtUsd: number; since: string | null; loans: EdgeLoan[] }
 type Entry = LedgerEntry & { firstMemo?: { digest: string } };
 
 const KINDS: Record<PredictionKind, { name: string; ask: string }> = {
@@ -34,8 +36,9 @@ export default function ProofPage() {
   const [rows, setRows] = useState<Entry[] | null>(null);
   const [anchors, setAnchors] = useState<Anchor[]>([]);
   const [err, setErr] = useState("");
+  const [edge, setEdge] = useState<Edge | null>(null);
   const [filter, setFilter] = useState<PredictionKind | "all">("all");
-  useEffect(() => { call<{ entries: Entry[]; anchors?: Anchor[] }>("/ledger", { timeoutMs: 20000 }).then((d) => { setRows(d.entries); setAnchors(d.anchors ?? []); }).catch((e) => setErr(e.message)); }, []);
+  useEffect(() => { call<{ entries: Entry[]; anchors?: Anchor[]; edge?: Edge }>("/ledger", { timeoutMs: 20000 }).then((d) => { setRows(d.entries); setAnchors(d.anchors ?? []); setEdge(d.edge ?? null); }).catch((e) => setErr(e.message)); }, []);
 
   const stats = useMemo(() => {
     type Side = { n: number; hits: number; err: number; errN: number };
@@ -72,6 +75,22 @@ export default function ProofPage() {
       </div>
 
       <RunningNow full />
+
+      {edge && edge.tracked > 0 && (
+        <section style={{ marginTop: 56 }}>
+          <span className="kicker">Loans at the edge</span>
+          <h2 className="display" style={{ fontSize: "clamp(30px, 3.6vw, 48px)", marginTop: 8 }}>{edge.tracked} Kamino loans within reach of liquidation, {usd(edge.trackedDebtUsd)} of debt</h2>
+          <p className="ink2" style={{ marginTop: 10, maxWidth: 820 }}>Every 3 hours Steady sweeps the Kamino main market for loans with health under 1.12, notes when it first saw each one, then checks the chain for a liquidation of that loan. {edge.liquidated ? `${edge.liquidated} were liquidated after Steady flagged them, ${usd(edge.liquidatedDebtUsd)} of debt. Had a guard been armed on them, it would have tried to send the rescue before that.` : "None has been liquidated since Steady first saw it."} Tracking since {edge.since ? when(edge.since) : "now"}.</p>
+          {edge.loans.filter((l) => l.liquidated).length > 0 && (
+            <ul className="reasons" style={{ marginTop: 16 }}>
+              {edge.loans.filter((l) => l.liquidated).sort((a, b) => b.debtUsd - a.debtUsd).slice(0, 12).map((l) => (
+                <li key={l.obligation}>{usd(l.debtUsd)} loan at health {l.firstHealth} when flagged {when(l.firstSeenAt)}, liquidated {when(l.liquidated!.at)}. <a className="hash" href={`https://solscan.io/tx/${l.liquidated!.signature}`} target="_blank" rel="noreferrer">liquidation</a> · <Link className="linkbtn" href={`/app?wallet=${l.owner}`}>the wallet</Link></li>
+              ))}
+            </ul>
+          )}
+          <p className="mute" style={{ marginTop: 14, fontSize: 14 }}>Closest when Steady first saw them: {edge.loans.filter((l) => !l.liquidated).sort((a, b) => a.firstHealth - b.firstHealth).slice(0, 3).map((l, i) => <span key={l.obligation}>{i ? ", " : ""}<Link className="linkbtn" href={`/app?wallet=${l.owner}`}>{usd(l.debtUsd)} at {l.firstHealth}</Link></span>)}. Open any of them to see the fix Steady would prepare.</p>
+        </section>
+      )}
       <div style={{ height: 56 }} />
       {err && <p style={{ color: "var(--risk)" }}>The ledger could not load: {err}</p>}
       {!rows && !err && <p className="mute"><span className="live-dot" /> Loading the ledger</p>}

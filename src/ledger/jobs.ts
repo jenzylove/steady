@@ -7,6 +7,7 @@ import { settleDue } from "./settle.js";
 import { askFrontier, askFrontierInformed, hasFrontierKey } from "./frontier.js";
 import { makeAll } from "./make.js";
 import { anchorPending } from "./anchor.js";
+import { checkLiquidations, loadEdge, saveEdge, sweepEdge } from "./edge.js";
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), "[ledger]", ...a);
 
@@ -61,6 +62,21 @@ export function startLedgerJobs(ctx: AdapterContext): void {
     } catch (e) { log("tick error", String(e).slice(0, 200)); }
     finally { busy = false; }
   };
+  // Loans at the edge: sweep and check for liquidations every 3 hours.
+  let edgeBusy = false;
+  const edge = async () => {
+    if (edgeBusy) return; edgeBusy = true;
+    try {
+      const rows = loadEdge();
+      const added = await sweepEdge(ctx, rows);
+      const liq = await checkLiquidations(ctx, rows);
+      saveEdge(rows);
+      log("edge", rows.length, "tracked,", added, "new,", liq, "liquidations found");
+    } catch (e) { log("edge error", String(e).slice(0, 160)); }
+    finally { edgeBusy = false; }
+  };
+  setTimeout(edge, 60_000);
+  setInterval(edge, 3 * 3600_000);
   setTimeout(tick, 20_000);
   setInterval(tick, Number(process.env.LEDGER_TICK_MIN ?? "15") * 60_000);
 }

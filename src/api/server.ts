@@ -139,7 +139,9 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/ledger") {
       const { Ledger } = await import("../ledger/store.js");
       const l = new Ledger();
-      return send(res, 200, { entries: l.load(), anchors: l.anchors() }, origin);
+      const { loadEdge, edgeSummary } = await import("../ledger/edge.js");
+      const edge = loadEdge();
+      return send(res, 200, { entries: l.load(), anchors: l.anchors(), edge: { ...edgeSummary(edge), loans: edge } }, origin);
     }
 
     return send(res, 404, { error: "routes: POST /advise, POST /fix, POST /presign, POST /verify, GET /ledger, GET /stats, GET /health" }, origin);
