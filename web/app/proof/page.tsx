@@ -38,19 +38,24 @@ export default function ProofPage() {
   useEffect(() => { call<{ entries: Entry[]; anchors?: Anchor[] }>("/ledger", { timeoutMs: 20000 }).then((d) => { setRows(d.entries); setAnchors(d.anchors ?? []); }).catch((e) => setErr(e.message)); }, []);
 
   const stats = useMemo(() => {
-    const out = {} as Record<PredictionKind, { n: number; settled: number; hits: number; fHits: number; fN: number; stake: number }>;
-    for (const k of Object.keys(KINDS) as PredictionKind[]) out[k] = { n: 0, settled: 0, hits: 0, fHits: 0, fN: 0, stake: 0 };
+    type Side = { n: number; hits: number; err: number; errN: number };
+    const side = (): Side => ({ n: 0, hits: 0, err: 0, errN: 0 });
+    const out = {} as Record<PredictionKind, { n: number; settled: number; stake: number; s: Side; f: Side; i: Side }>;
+    for (const k of Object.keys(KINDS) as PredictionKind[]) out[k] = { n: 0, settled: 0, stake: 0, s: side(), f: side(), i: side() };
+    const add = (sd: Side, r: { verdict: boolean; value?: number } | undefined, o: { verdict: boolean; value: number }) => {
+      if (!r) return;
+      sd.n++; if (r.verdict === o.verdict) sd.hits++;
+      if (typeof r.value === "number") { sd.err += Math.abs(r.value - o.value); sd.errN++; }
+    };
     for (const e of rows ?? []) {
       const s = out[e.prediction.kind]; if (!s) continue;
-      s.n++; s.stake += e.prediction.usdAtStake ?? 0;
-      if (e.prediction.outcome) {
-        s.settled++;
-        if (e.prediction.steady.verdict === e.prediction.outcome.verdict) s.hits++;
-        if (e.prediction.frontier) { s.fN++; if (e.prediction.frontier.verdict === e.prediction.outcome.verdict) s.fHits++; }
-      }
+      const p = e.prediction;
+      s.n++; s.stake += p.usdAtStake ?? 0;
+      if (p.outcome) { s.settled++; add(s.s, p.steady, p.outcome); add(s.f, p.frontier, p.outcome); add(s.i, p.frontierInformed, p.outcome); }
     }
     return out;
   }, [rows]);
+  const off = (sd: { err: number; errN: number }) => (sd.errN ? (sd.err / sd.errN).toPrecision(2) : "n/a");
 
   const list = (rows ?? []).filter((e) => filter === "all" || e.prediction.kind === filter).sort((a, b) => a.prediction.settleAt.localeCompare(b.prediction.settleAt));
   const settled = (rows ?? []).filter((e) => e.prediction.outcome);
@@ -63,7 +68,7 @@ export default function ProofPage() {
       <div className="page-head">
         <span className="kicker">Proof</span>
         <h1 className="display page-title">Signed first. Settled by the chain.</h1>
-        <p className="ink2 big">Steady makes short calls about real positions before the outcome is known, signs them, and settles them later from its own mainnet reads. A frontier model answers the same questions blind. Every miss stays on this page.</p>
+        <p className="ink2 big">Steady makes short calls about real positions before the outcome is known, signs them, and settles them later from its own mainnet reads. A frontier model answers the same questions twice, once blind and once with the numbers Steady read. Every miss stays on this page, Steady&apos;s included.</p>
       </div>
 
       <RunningNow full />
@@ -79,11 +84,17 @@ export default function ProofPage() {
               return (
                 <div key={k}>
                   <span className="kicker">{KINDS[k].name}</span>
-                  <span className="num-xl" style={{ fontSize: "clamp(40px, 5vw, 64px)" }}>{s.settled ? `${s.hits}/${s.settled}` : s.n}</span>
+                  <span className="num-xl" style={{ fontSize: "clamp(40px, 5vw, 64px)" }}>{s.settled ? `${s.s.hits}/${s.settled}` : s.n}</span>
                   <span className="ink2" style={{ fontSize: 14 }}>
-                    {s.settled ? `Steady right on ${s.hits} of ${s.settled} settled` : `${s.n} calls open, none settled yet`}
-                    {s.fN ? `. Frontier model right on ${s.fHits} of ${s.fN}.` : ""}
+                    {s.settled ? `Steady right on ${s.s.hits} of ${s.settled} settled` : `${s.n} calls open, none settled yet`}
+                    {s.f.n ? `. Blind model ${s.f.hits} of ${s.f.n}` : ""}
+                    {s.i.n ? `, informed model ${s.i.hits} of ${s.i.n}.` : s.f.n ? "." : ""}
                   </span>
+                  {s.s.errN > 0 && (
+                    <span className="mute mono" style={{ fontSize: 12 }}>
+                      average miss on the number: Steady {off(s.s)} · blind {off(s.f)} · informed {off(s.i)}
+                    </span>
+                  )}
                   {s.stake > 0 && <span className="mute mono" style={{ fontSize: 12 }}>{usd(s.stake)} in loans watched</span>}
                 </div>
               );
@@ -100,7 +111,9 @@ export default function ProofPage() {
             <div>
               <span className="kicker">What each side was given</span>
               <p className="ink2" style={{ marginTop: 10 }}><strong style={{ color: "var(--ink)" }}>Steady:</strong> live reads of the chain and the protocols, plus seven days of history for each subject.</p>
-              <p className="ink2" style={{ marginTop: 8 }}><strong style={{ color: "var(--ink)" }}>Frontier model:</strong> the same question and today&apos;s date only. No tools, no chain reads.</p>
+              <p className="ink2" style={{ marginTop: 8 }}><strong style={{ color: "var(--ink)" }}>Blind model:</strong> the same question and today&apos;s date only. No tools, no chain reads.</p>
+              <p className="ink2" style={{ marginTop: 8 }}><strong style={{ color: "var(--ink)" }}>Informed model:</strong> the same model, given the same numbers Steady read when it made the call.</p>
+              <p className="ink2" style={{ marginTop: 8 }}>Each side gives a yes or no and a number. The yes or no is scored as a hit or miss; the number is scored by how far it landed from the chain.</p>
               <p className="mute" style={{ marginTop: 8, fontSize: 14 }}>The outcome is settled by Steady&apos;s own mainnet read at the stated time, and the settlement is a second signed memo.</p>
             </div>
             <div>
@@ -142,13 +155,17 @@ export default function ProofPage() {
                       </div>
                       <div className="pred-calls">
                         <Verdict v={p.steady.verdict} label="Steady" />
-                        <Verdict v={p.frontier?.verdict} label="Frontier" />
+                        <Verdict v={p.frontier?.verdict} label="Blind" />
+                        <Verdict v={p.frontierInformed?.verdict} label="Informed" />
                         {p.outcome ? <span className={`tag ${hit ? "solid" : "risk"}`}>{hit ? "Hit" : "Miss"}</span> : <span className="tag">Open, {relative(p.settleAt)}</span>}
                       </div>
                     </summary>
                     <div className="pred-body">
                       <div><span className="kicker">Steady&apos;s reasoning</span><p style={{ marginTop: 8 }}>{p.steady.why}</p></div>
-                      <div><span className="kicker">Frontier model</span><p style={{ marginTop: 8 }}>{p.frontier ? `${p.frontier.model}: ${p.frontier.why}` : "Not answered yet."}</p></div>
+                      <div>
+                        <span className="kicker">Blind model</span><p style={{ marginTop: 8 }}>{p.frontier ? `${p.frontier.model}: ${p.frontier.why}${p.frontier.value !== undefined ? ` (said ${p.frontier.value})` : ""}` : "Not answered yet."}</p>
+                        <span className="kicker" style={{ display: "block", marginTop: 14 }}>Informed model</span><p style={{ marginTop: 8 }}>{p.frontierInformed ? `${p.frontierInformed.why}${p.frontierInformed.value !== undefined ? ` (said ${p.frontierInformed.value})` : ""}` : "Not answered yet."}</p>
+                      </div>
                       <div>
                         <span className="kicker">Outcome</span>
                         <p style={{ marginTop: 8 }}>{p.outcome ? `Settled ${when(p.outcome.settledAt)} at ${p.outcome.value}. The claim was ${p.outcome.verdict ? "true" : "false"}.` : "Not settled yet."}</p>
@@ -166,7 +183,7 @@ export default function ProofPage() {
             <h2 className="display" style={{ fontSize: "clamp(30px, 3.6vw, 48px)", marginBottom: 14 }}>Misses</h2>
             {misses.length ? (
               <ul className="reasons" style={{ color: "var(--risk)" }}>
-                {misses.map((e) => <li key={e.prediction.id}><span style={{ color: "var(--ink)" }}>{e.prediction.claim}. Steady said {e.prediction.steady.verdict ? "yes" : "no"}; the chain said {e.prediction.outcome!.verdict ? "yes" : "no"} ({e.prediction.outcome!.value}).</span></li>)}
+                {misses.map((e) => <li key={e.prediction.id}><span style={{ color: "var(--ink)" }}>{e.prediction.claim}. Steady said {e.prediction.steady.verdict ? "yes" : "no"}{e.prediction.steady.value !== undefined ? ` (health ${e.prediction.steady.value})` : ""}; the chain said {e.prediction.outcome!.verdict ? "yes" : "no"} ({e.prediction.outcome!.value}).</span></li>)}
               </ul>
             ) : (
               <p className="ink2">{settled.length ? "No misses among the settled calls so far." : "Nothing has settled yet, so there is nothing to count. Misses will be listed here the moment they happen, not hidden."}</p>

@@ -37,6 +37,7 @@ export interface Prediction {
   params: Record<string, number | string>; madeAt: string; settleAt: string;
   steady: { verdict: boolean; value: number; why: string };
   frontier?: { model: string; verdict: boolean; value?: number; why: string };
+  frontierInformed?: { model: string; verdict: boolean; value?: number; why: string };
   outcome?: { verdict: boolean; value: number; settledAt: string; source: Source };
   usdAtStake?: number;
 }
