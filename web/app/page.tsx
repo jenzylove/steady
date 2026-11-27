@@ -40,7 +40,7 @@ export default function Home() {
             <span className="hero-steady"><Tilted text="Then fix it." start={700} /></span>
           </h1>
           <p className="hero-sub ink2">
-            Paste any wallet. Steady reads everything it holds from Solana mainnet, buys what the chain cannot know from Telegraph miners, and hands you the exact transaction to sign in Phantom. Then it keeps watching.
+            Paste any wallet. Steady reads everything it holds from Solana mainnet, buys what the chain cannot know from Telegraph miners, and hands you the exact transaction to sign in Phantom. Got a Kamino loan? Sign one rescue today and Steady Guard sends it only if the loan needs it.
           </p>
           <HeroDemo />
           <div className="hero-door">
@@ -50,10 +50,36 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="sec" id="how">
+      <section className="sec" id="guard">
         <div className="wrap">
           <Reveal className="sec-head">
             <span className="sec-num">01</span>
+            <h2 className="display sec-title">Sign the rescue once. Steady sends it when your loan needs it.</h2>
+          </Reveal>
+          <div className="trio">
+            <Reveal className="trio-i">
+              <span className="kicker">You pick the line</span>
+              <p className="ink2" style={{ marginTop: 10 }}>Choose the health at which a Kamino loan gets rescued. You sign the rescue once in Phantom, and Phantom does not send it.</p>
+            </Reveal>
+            <Reveal className="trio-i" delay={120}>
+              <span className="kicker">Steady watches</span>
+              <p className="ink2" style={{ marginTop: 10 }}>Steady checks the loan every 45 seconds. When it gets close, it asks independent Telegraph price miners what the market says.</p>
+            </Reveal>
+            <Reveal className="trio-i" delay={240}>
+              <span className="kicker">Only your rescue</span>
+              <p className="ink2" style={{ marginTop: 10 }}>Steady sends only the rescue you signed, which repays your own debt. It never holds a key. Cancel any time with one signature.</p>
+            </Reveal>
+          </div>
+          <Reveal>
+            <Link href="/app" className="btn" style={{ textDecoration: "none", marginTop: 40, width: "fit-content" }}><span className="bub" /> Guard a loan</Link>
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="sec" id="how">
+        <div className="wrap">
+          <Reveal className="sec-head">
+            <span className="sec-num">02</span>
             <h2 className="display sec-title">How it works</h2>
           </Reveal>
           <Reveal><Flow /></Reveal>
@@ -63,7 +89,7 @@ export default function Home() {
       <section className="sec" id="proof">
         <div className="wrap">
           <Reveal className="sec-head">
-            <span className="sec-num">02</span>
+            <span className="sec-num">03</span>
             <h2 className="display sec-title">Proof, not promises</h2>
           </Reveal>
           <div className="trio">
@@ -94,7 +120,7 @@ export default function Home() {
       <section className="sec" id="sign">
         <div className="wrap">
           <Reveal className="sec-head">
-            <span className="sec-num">03</span>
+            <span className="sec-num">04</span>
             <h2 className="display sec-title">Before you sign anything</h2>
           </Reveal>
           <Reveal className="split">
@@ -114,7 +140,7 @@ export default function Home() {
       <section className="sec" id="miner">
         <div className="wrap">
           <Reveal className="sec-head">
-            <span className="sec-num">04</span>
+            <span className="sec-num">05</span>
             <h2 className="display sec-title">The miner</h2>
           </Reveal>
           <Reveal className="split">
@@ -131,7 +157,7 @@ export default function Home() {
       <section className="sec" id="faq">
         <div className="wrap">
           <Reveal className="sec-head">
-            <span className="sec-num">05</span>
+            <span className="sec-num">06</span>
             <h2 className="display sec-title">Questions</h2>
           </Reveal>
           <Reveal>
