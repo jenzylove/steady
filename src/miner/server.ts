@@ -5,11 +5,14 @@ import { createServer, type Server } from "node:http";
 import { pathToFileURL } from "node:url";
 import type { AdapterContext } from "../engine/types.js";
 import { poolLiquidity, type PoolLiquidity } from "../engine/pools/liquidity.js";
-import { isSolanaChain, resolvePool } from "./pools.js";
+import { isSolanaChain, parseAsk, resolvePool } from "./pools.js";
+import { discoverPools, TOKEN_MINTS, tokenMint } from "./discover.js";
 
 export interface MinerDeps {
   ctx: () => AdapterContext;
   liquidity?: (ctx: AdapterContext, pool: string) => Promise<PoolLiquidity>;
+  /** Pool addresses holding all the given mints, deepest first. Defaults to DexScreener's public pair list. */
+  discover?: (mints: string[], dex: string | undefined) => Promise<string[]>;
   cacheMs?: number;
   now?: () => number;
 }
@@ -46,6 +49,7 @@ function shape(r: PoolLiquidity, chain: string, name: string | undefined, fetche
 
 export function createHandler(deps: MinerDeps) {
   const liquidity = deps.liquidity ?? poolLiquidity;
+  const discover = deps.discover ?? ((m: string[], d: string | undefined) => discoverPools(m, d));
   const ttl = deps.cacheMs ?? 30_000;
   const clock = deps.now ?? Date.now;
   const cache = new Map<string, { at: number; reply: Reply }>();
@@ -69,6 +73,43 @@ export function createHandler(deps: MinerDeps) {
     return { status: 200, body: shape(r, "solana", name, new Date(clock()).toISOString()) };
   }
 
+  /** Reads a pool through the 30 second cache, sharing one in flight read per address. */
+  function cached(address: string, name: string | undefined): Promise<Reply> {
+    const hit = cache.get(address);
+    if (hit && clock() - hit.at < ttl) return Promise.resolve(hit.reply);
+    let p = inflight.get(address);
+    if (!p) {
+      p = read(address, name)
+        .then((reply) => {
+          if (reply.status === 200 || reply.status === 422) {
+            if (cache.size > 500) cache.clear();
+            cache.set(address, { at: clock(), reply });
+          }
+          return reply;
+        })
+        .finally(() => inflight.delete(address));
+      inflight.set(address, p);
+    }
+    return p;
+  }
+
+  /** A name the table does not know: look the pair up live and answer with the deepest pool that can be read. */
+  async function byPair(pool: string): Promise<Reply | null> {
+    const ask = parseAsk(pool);
+    if (ask.fee || ask.tokens.length < 1 || ask.tokens.length > 2) return null;
+    const mints = ask.tokens.map(tokenMint);
+    if (mints.some((m) => !m)) {
+      const bad = ask.tokens.filter((_, i) => !mints[i]).map((b) => `'${b}'`).join(", ");
+      return { status: 404, body: { error: "unknown_pool", reason: `unknown token ${bad}; use one of ${Object.keys(TOKEN_MINTS).join(", ")}, a token mint address, or the pool address` } };
+    }
+    const found = await discover(mints as string[], ask.dex).catch(() => [] as string[]);
+    for (const address of found) {
+      const r = await cached(address, undefined);
+      if (r.status === 200 || r.status === 422) return r;
+    }
+    return { status: 404, body: { error: "unknown_pool", reason: `no readable Orca, Raydium or Meteora pool found for '${pool}'; pass the pool address` } };
+  }
+
   return async function handle(pool: string | null, chain: string | null): Promise<Reply> {
     if (!pool) return { status: 400, body: { error: "missing_param", reason: "pool is required" } };
     if (!chain) return { status: 400, body: { error: "missing_param", reason: "chain is required; this miner serves solana" } };
@@ -76,33 +117,23 @@ export function createHandler(deps: MinerDeps) {
       return { status: 400, body: { error: "unsupported_chain", reason: `chain '${chain}' is not served; this miner reads Solana pools only (chain=solana)` } };
     }
     const res = resolvePool(pool);
-    if (!res.ok) return { status: res.status, body: { error: res.status === 404 ? "unknown_pool" : "bad_pool", reason: res.reason } };
-    const hit = cache.get(res.address);
-    if (hit && clock() - hit.at < ttl) return hit.reply;
-    let p = inflight.get(res.address);
-    if (!p) {
-      p = read(res.address, res.name)
-        .then((reply) => {
-          if (reply.status === 200 || reply.status === 422) {
-            if (cache.size > 500) cache.clear();
-            cache.set(res.address, { at: clock(), reply });
-          }
-          return reply;
-        })
-        .finally(() => inflight.delete(res.address));
-      inflight.set(res.address, p);
+    if (res.ok) return cached(res.address, res.name);
+    // Not in the table, or a bare pair that matches several pools.
+    if (res.status === 404 || /more than one pool/.test(res.reason)) {
+      const live = await byPair(pool);
+      if (live) return live;
     }
-    return p;
+    return { status: res.status, body: { error: res.status === 404 ? "unknown_pool" : "bad_pool", reason: res.reason } };
   };
 }
 
 /** Counts since this process started. Reads from Steady's own site send x-steady-board and are counted apart. */
-export interface MinerStats { since: string; answers: number; refused: number; boardReads: number; lastAnswerAt: string | null }
+export interface MinerStats { since: string; answers: number; refused: number; boardReads: number; lastAnswerAt: string | null; refusedBy: Record<string, number>; recentRefused: { at: string; pool: string; chain: string; status: number; error: string }[] }
 
 export function createMinerServer(deps: MinerDeps): Server {
   const handle = createHandler(deps);
   const clock = deps.now ?? Date.now;
-  const stats: MinerStats = { since: new Date(clock()).toISOString(), answers: 0, refused: 0, boardReads: 0, lastAnswerAt: null };
+  const stats: MinerStats = { since: new Date(clock()).toISOString(), answers: 0, refused: 0, boardReads: 0, lastAnswerAt: null, refusedBy: {}, recentRefused: [] };
   const perIp = new Map<string, { minute: number; n: number }>();
   const PER_IP_PER_MIN = Number(process.env.MINER_PER_IP_PER_MIN ?? "240");
   return createServer(async (req, res) => {
@@ -133,7 +164,13 @@ export function createMinerServer(deps: MinerDeps): Server {
         const r = await handle(url.searchParams.get("pool"), url.searchParams.get("chain"));
         if (req.headers["x-steady-board"]) stats.boardReads++;
         else if (r.status === 200) { stats.answers++; stats.lastAnswerAt = new Date(clock()).toISOString(); }
-        else stats.refused++;
+        else {
+          stats.refused++;
+          const err = String((r.body as { error?: unknown }).error ?? r.status);
+          stats.refusedBy[err] = (stats.refusedBy[err] ?? 0) + 1;
+          stats.recentRefused.push({ at: new Date(clock()).toISOString(), pool: String(url.searchParams.get("pool") ?? "").slice(0, 80), chain: String(url.searchParams.get("chain") ?? "").slice(0, 24), status: r.status, error: err });
+          if (stats.recentRefused.length > 60) stats.recentRefused.shift();
+        }
         return send(r);
       }
       send({ status: 404, body: { error: "not_found", reason: "routes: GET /liquidity?pool=&chain=solana, GET /stats, GET /health" } });

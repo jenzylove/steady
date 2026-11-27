@@ -91,6 +91,18 @@ export function resolvePool(input: string): Resolved {
   };
 }
 
+/** Splits a pool name into its DEX, fee tier and token words, for the live pair search. Case is kept so mint addresses survive. */
+export function parseAsk(input: string): { dex?: string; fee?: string; tokens: string[] } {
+  let t = input.trim();
+  const dex = DEXES.find((d) => t.toLowerCase().includes(d));
+  if (dex) t = t.replace(new RegExp(dex, "i"), " ");
+  const fee = /(\d+(?:\.\d+)?)\s*%/.exec(t);
+  if (fee) t = t.replace(fee[0], " ");
+  const noise = new Set(["pool", "pair", "lp", "liquidity", "amm", "clmm", "whirlpool", "dlmm", "cpmm", "on", "solana", "of", "the", "and", "v2", "v3"]);
+  const tokens = t.split(/[\s\/\_\-:,]+/).map((x) => x.replace(/^\$/, "")).filter((x) => x && !noise.has(x.toLowerCase())).map((x) => (/^wsol$/i.test(x) ? "SOL" : x));
+  return { ...(dex ? { dex } : {}), ...(fee ? { fee: fee[1]! } : {}), tokens: [...new Set(tokens)] };
+}
+
 const SOLANA_NAMES = new Set(["solana", "sol", "solana-mainnet", "solana mainnet", "mainnet-beta", "solana-mainnet-beta", "solana mainnet-beta"]);
 export function isSolanaChain(chain: string): boolean {
   return SOLANA_NAMES.has(chain.trim().toLowerCase());

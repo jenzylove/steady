@@ -5,7 +5,8 @@ import type { AdapterContext } from "../engine/types.js";
 import { poolLiquidity } from "../engine/pools/liquidity.js";
 import { replayFetch, type RecordedCall } from "../engine/__fixtures__/replay.js";
 import { createHandler, createMinerServer } from "./server.js";
-import { resolvePool } from "./pools.js";
+import { parseAsk, resolvePool } from "./pools.js";
+import { discoverPools, tokenMint } from "./discover.js";
 
 const ORCA = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE";
 const dir = new URL("../engine/__fixtures__/lp/", import.meta.url);
@@ -140,5 +141,56 @@ describe.skipIf(!process.env.LIVE)("live", () => {
     const theirs = Number(((await (await fetch(`https://api.orca.so/v2/solana/pools/${ORCA}`)).json()) as any).data.tvlUsdc);
     const ours = (r.body as any).liquidity_usd as number;
     expect(Math.abs(ours - theirs) / theirs).toBeLessThan(0.01);
+  });
+});
+
+describe("pair names the table does not list", () => {
+  const SOL = "So11111111111111111111111111111111111111112";
+  const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const BONK = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
+  const liquidity = (async (_c: AdapterContext, pool: string) => {
+    if (pool === "unsupported") throw new Error("account is not an Orca, Raydium or Meteora pool");
+    return { pool, dex: "orca-whirlpool", usd: 123, tokenA: { mint: SOL, symbol: "SOL", amount: 1, usd: 100 }, tokenB: { mint: USDC, symbol: "USDC", amount: 23, usd: 23 }, sources: [{ kind: "chain", slot: 5 }], gaps: [] };
+  }) as any;
+
+  it("parses names and keeps mint case", () => {
+    expect(parseAsk("Raydium BONK-USDC pool")).toEqual({ dex: "raydium", tokens: ["BONK", "USDC"] });
+    expect(parseAsk(`wsol / ${BONK}`).tokens).toEqual(["SOL", BONK]);
+    expect(tokenMint("bonk")).toBe(BONK);
+    expect(tokenMint("FAKE")).toBeUndefined();
+  });
+
+  it("discovery matches on mint and sorts by depth, ignoring look alikes and other DEXes", async () => {
+    const get = async () => [
+      { dexId: "orca", pairAddress: "small", baseToken: { address: BONK }, quoteToken: { address: USDC }, liquidity: { usd: 10 } },
+      { dexId: "raydium", pairAddress: "deep", baseToken: { address: BONK }, quoteToken: { address: USDC }, liquidity: { usd: 900 } },
+      { dexId: "raydium", pairAddress: "fake", baseToken: { address: "ScamMint" }, quoteToken: { address: USDC }, liquidity: { usd: 9e9 } },
+      { dexId: "pumpswap", pairAddress: "other", baseToken: { address: BONK }, quoteToken: { address: USDC }, liquidity: { usd: 1e6 } },
+    ];
+    expect(await discoverPools([BONK, USDC], undefined, get)).toEqual(["deep", "small"]);
+    expect(await discoverPools([BONK, USDC], "orca", get)).toEqual(["small"]);
+  });
+
+  it("answers a pair name with the deepest pool that can be read, and tells what it asked for", async () => {
+    const seen: string[][] = [];
+    const handle = createHandler({ ctx: () => ({}) as any, liquidity, discover: async (m, d) => { seen.push([...m, d ?? ""]); return ["unsupported", "deepPool"]; } });
+    const r = await handle("BONK/USDC", "Solana");
+    expect(r.status).toBe(200);
+    expect((r.body as any).pool).toBe("deepPool");
+    expect(seen[0]).toEqual([BONK, USDC, ""]);
+    expect((await handle("SOL/USDC", "solana")).status).toBe(200);
+    expect((await handle("Meteora BONK-USDC pool", "solana")).status).toBe(200);
+    expect(seen.at(-1)).toEqual([BONK, USDC, "meteora"]);
+  });
+
+  it("still refuses unknown tokens, nothing found, fee tiers it has no pool for, and other chains", async () => {
+    const none = createHandler({ ctx: () => ({}) as any, liquidity, discover: async () => [] });
+    expect((await none("BONK/USDC", "solana")).status).toBe(404);
+    const unknownToken = await none("Orca FOO/BAR", "solana");
+    expect(unknownToken.status).toBe(404);
+    expect(String(unknownToken.body.reason)).toMatch(/unknown token 'FOO', 'BAR'/);
+    expect((await none("Orca SOL/USDC 0.3%", "solana")).status).toBe(404);
+    const eth = await none("Uniswap ETH/USDC", "ethereum");
+    expect(eth).toMatchObject({ status: 400, body: { error: "unsupported_chain" } });
   });
 });
