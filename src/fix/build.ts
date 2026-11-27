@@ -36,8 +36,9 @@ const KAMINO_MAIN = "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF";
 /** Main market reserve for a mint, from Kamino's public reserve list. */
 async function kaminoReserveFor(ctx: AdapterContext, mint: string): Promise<string | undefined> {
   const res = await ctx.fetch(`https://api.kamino.finance/kamino-market/${KAMINO_MAIN}/reserves/metrics`);
-  const list = (await res.json()) as { reserve: string; liquidityTokenMint: string }[];
-  return list.find((r) => r.liquidityTokenMint === mint)?.reserve;
+  const list = (await res.json()) as { reserve: string; liquidityTokenMint: string; totalSupplyUsd?: string }[];
+  // The main market lists several reserves per token, some of them near empty: use the deepest, the one the rate finding quotes.
+  return list.filter((r) => r.liquidityTokenMint === mint).sort((a, b) => Number(b.totalSupplyUsd ?? 0) - Number(a.totalSupplyUsd ?? 0))[0]?.reserve;
 }
 
 export async function buildFix(ctx: AdapterContext, wallet: string, fix: FixSpec, positions: Position[]): Promise<BuiltFix> {
