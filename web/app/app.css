@@ -145,3 +145,21 @@ table.board pre.logs { max-height: 380px; overflow: auto; }
 .how li { display: flex; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); color: var(--ink2); }
 .how li .mono { font-size: 12px; padding-top: 4px; }
 .two > * { min-width: 0; }
+
+/* Steady Guard */
+.guard { margin: 22px 0 6px; padding: 22px 24px; max-width: 760px; border: 1px solid var(--line2); border-left: 3px solid var(--vial); border-radius: 6px; background: var(--vial-glass); }
+.g-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
+.g-title { font-size: clamp(22px, 2.4vw, 28px); font-weight: 600; line-height: 1.25; margin: 4px 0 4px; }
+.g-line { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; font-size: 16px; }
+.g-line input[type=range] { width: 100%; accent-color: var(--vial-ink); height: 28px; }
+.g-scale { display: flex; justify-content: space-between; font-size: 12px; }
+.g-steps { list-style: none; padding: 0; margin: 18px 0 4px; border-top: 1px solid var(--line); }
+.g-steps li { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.g-steps li.done, .g-steps li.todo { opacity: .75; }
+.g-steps li.now .tag { background: var(--vial); color: var(--on-vial); border-color: var(--vial); }
+.g-sub { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line2); }
+.g-events { list-style: none; padding: 0; margin: 12px 0 0; }
+.g-events li { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.g-note { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
+.g-note p { font-size: 15px; color: var(--ink2); }
+@media (max-width: 640px) { .guard { padding: 18px 16px; } .g-events li { grid-template-columns: 1fr; gap: 2px; } .g-steps li { grid-template-columns: 18px 1fr; } .g-steps li .tag { grid-column: 2; width: fit-content; } }

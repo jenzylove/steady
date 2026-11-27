@@ -77,3 +77,12 @@ export async function call<T>(path: string, init?: RequestInit & { timeoutMs?: n
 export const post = <T,>(path: string, body: unknown, timeoutMs?: number) => call<T>(path, { method: "POST", body: JSON.stringify(body), timeoutMs });
 
 export function isLikelyAddress(s: string): boolean { return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s.trim()); }
+
+// Steady Guard (src/guard/guard.ts). The API never returns the signed bytes, only a flag.
+export interface GuardCheck { symbol: string; oracle: number; market?: number; agreed: boolean; signals: string[] }
+export interface GuardEvent { at: string; kind: string; note: string; signature?: string }
+export interface GuardInfo {
+  wallet: string; obligation: string; line: number; status: "prepared" | "armed" | "fired" | "failed" | "stale" | "cancelled";
+  summary: string; lastHealth?: number; lastCheckedAt?: string; firedSignature?: string; events: GuardEvent[];
+  lastEarly?: { at: string; chainHealth: number; projected: number; fire: boolean; costUsd: number; checks: GuardCheck[] };
+}

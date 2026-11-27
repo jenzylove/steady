@@ -7,6 +7,7 @@ import { label, value, sentence, short, usd, SEV_ORDER, sevClass, sevWord, when 
 import Level, { levelFromDistance } from "@/components/Level";
 import Door from "@/components/Door";
 import FixPanel from "@/components/FixPanel";
+import GuardCard from "@/components/GuardCard";
 import Memo from "@/components/Memo";
 import { EvidenceList, SourceList } from "@/components/Evidence";
 import WatchCta from "@/components/WatchCta";
@@ -49,6 +50,7 @@ function Waiting({ wallet }: { wallet: string }) {
 function FindingRow({ f, wallet, idx, memo }: { f: Finding; wallet: string; idx: number; memo: Signed<Advice> }) {
   const n = f.numbers;
   const isLoan = f.code === "liquidation_near" && typeof n.distancePct === "number";
+  const isKamino = isLoan && f.title.toLowerCase().startsWith("kamino") && f.id.split(":").length >= 3;
   const keys = Object.keys(n).filter((k) => !(k === "protocolHealth" && n.health === n.protocolHealth));
   const used = f.evidence.filter((e) => e.used).length;
   const rejected = f.evidence.length - used;
@@ -64,6 +66,7 @@ function FindingRow({ f, wallet, idx, memo }: { f: Finding; wallet: string; idx:
             <Level pos={levelFromDistance(Number(n.distancePct))} height={34} danger={`Liquidated at $${n.liquidationPrice}`} safe={`${n.mainCollateral} now $${n.price}`} />
           </div>
         )}
+        {isKamino && typeof n.health === "number" && <GuardCard wallet={wallet} obligation={f.id.split(":")[2] ?? ""} health={n.health} collateral={String(n.mainCollateral ?? "")} />}
         <dl className="kv" style={{ marginTop: 12 }}>
           {keys.map((k) => (
             <div key={k}><dt>{label(k)}</dt><dd>{value(k, n[k]!)}</dd></div>
