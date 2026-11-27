@@ -21,7 +21,7 @@ export interface Finding {
   id: string; kind: "risk" | "opportunity"; code: string; severity: Severity; title: string;
   numbers: Record<string, number | string>; sources: Source[]; evidence: Evidence[]; fix?: FixSpec;
 }
-export interface Advice { wallet: string; at: string; totalUsd: number; findings: Finding[]; gaps: string[]; costUsd: number; checks?: Evidence[] }
+export interface Advice { wallet: string; at: string; totalUsd: number; findings: Finding[]; gaps: string[]; costUsd: number; checks?: Evidence[]; reusedAnswers?: number }
 export interface Signed<T> { body: T; digest: string; signer: string; signature: string }
 export interface Simulation { ok: boolean; err?: string; unitsConsumed?: number; logsTail: string[] }
 export interface BuiltFix { fix: FixSpec; transaction?: string; simulation?: Simulation; unsupported?: string; builder: string; summary?: string }

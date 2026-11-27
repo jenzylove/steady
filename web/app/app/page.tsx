@@ -103,7 +103,7 @@ function Result({ advice, memo }: { advice: Advice; memo: Signed<Advice> }) {
         <div className="r-total">
           <span className="kicker">Everything Steady could price</span>
           <span className="num-xl">{usd(advice.totalUsd, 2)}</span>
-          <span className="mute" style={{ fontSize: 13 }}>{advice.costUsd > 0 ? `${usd(advice.costUsd, 2)} spent on Telegraph answers for this check` : "No paid Telegraph answers were needed for this check"}</span>
+          <span className="mute" style={{ fontSize: 13 }}>{advice.costUsd > 0 ? `${usd(advice.costUsd, 2)} spent on Telegraph answers for this check${advice.reusedAnswers ? `, plus ${advice.reusedAnswers} reused` : ""}` : advice.reusedAnswers ? `${advice.reusedAnswers} Telegraph answer${advice.reusedAnswers === 1 ? "" : "s"} used, bought earlier and reused for up to 3 hours` : "No Telegraph answers were needed for this check"}</span>
         </div>
       </div>
 

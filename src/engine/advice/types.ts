@@ -53,6 +53,8 @@ export interface Advice {
   costUsd: number; // Telegraph spend for this run
   /** Every Telegraph answer bought that did not become a finding, used or rejected, kept as evidence. */
   checks?: Evidence[] | undefined;
+  /** Telegraph answers used in this check that were bought earlier and reused (news is reused for 3 hours per protocol). */
+  reusedAnswers?: number | undefined;
 }
 
 /** A short horizon call that settles from Steady's own mainnet reads. */

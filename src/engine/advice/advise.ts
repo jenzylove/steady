@@ -94,10 +94,11 @@ async function newsFor(proto: string): Promise<Answer & { cached?: boolean }> {
 }
 
 /** Ask Telegraph news miners about each protocol the wallet uses; raise an alert only when the answer itself reports an incident about that protocol. */
-export async function protocolAlerts(r: AdapterResult): Promise<{ findings: Finding[]; cost: number; checks: Evidence[] }> {
+export async function protocolAlerts(r: AdapterResult): Promise<{ findings: Finding[]; cost: number; checks: Evidence[]; reused: number }> {
   const protocols = [...new Set([...r.positions.map((p) => p.protocol), ...r.loans.map((l) => l.protocol)])].filter((p) => !["wallet", "stake", "lst"].includes(p));
   const out: Finding[] = [];
   let cost = 0;
+  let reused = 0;
   const checks: Evidence[] = [];
   await Promise.all(protocols.map(async (proto) => {
     const a = await newsFor(proto);
@@ -106,11 +107,12 @@ export async function protocolAlerts(r: AdapterResult): Promise<{ findings: Find
     const verdict = judgeNews(proto, text);
     const ev = toEvidence({ ...a, used: verdict.credible, rejectReason: verdict.reason }, text.slice(0, 280) || a.error || "no answer");
     checks.push(ev);
+    if (a.cached) reused++;
     if (a.ok && verdict.credible && verdict.keyword) {
       out.push({ id: `risk:protocol_alert:${proto}`, kind: "risk", code: "protocol_alert", severity: "medium", title: `A news report links ${proto} to an incident (${verdict.keyword}): read it before adding more`, numbers: { protocol: proto, keyword: verdict.keyword, headline: verdict.headline ?? "" }, sources: [], evidence: [ev] });
     }
   }));
-  return { findings: out, cost, checks };
+  return { findings: out, cost, checks, reused };
 }
 
 export async function advise(wallet: string, ctx: AdapterContext, opts: { telegraph?: boolean } = {}): Promise<Advice> {
@@ -120,11 +122,11 @@ export async function advise(wallet: string, ctx: AdapterContext, opts: { telegr
   let cost = 0;
   const [rates, alerts] = await Promise.all([
     rateOpportunities(r, ctx, { telegraph }).catch((e) => { r.gaps.push(`rates: ${scrub(String(e)).slice(0, 120)}`); return { findings: [], cost: 0 }; }),
-    telegraph ? protocolAlerts(r).catch((e) => { r.gaps.push(`protocol alerts: ${scrub(String(e)).slice(0, 120)}`); return { findings: [], cost: 0, checks: [] as Evidence[] }; }) : Promise.resolve({ findings: [], cost: 0, checks: [] as Evidence[] }),
+    telegraph ? protocolAlerts(r).catch((e) => { r.gaps.push(`protocol alerts: ${scrub(String(e)).slice(0, 120)}`); return { findings: [], cost: 0, checks: [] as Evidence[], reused: 0 }; }) : Promise.resolve({ findings: [], cost: 0, checks: [] as Evidence[], reused: 0 }),
   ]);
   findings.push(...rates.findings, ...alerts.findings);
   cost += rates.cost + alerts.cost;
   const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 } as const;
   findings.sort((a, b) => order[a.severity] - order[b.severity]);
-  return { wallet, at: ctx.now().toISOString(), totalUsd: totalUsd(r), findings, gaps: r.gaps, costUsd: Math.round(cost * 1000) / 1000, checks: alerts.checks };
+  return { wallet, at: ctx.now().toISOString(), totalUsd: totalUsd(r), findings, gaps: r.gaps, costUsd: Math.round(cost * 1000) / 1000, checks: alerts.checks, reusedAnswers: alerts.reused ?? 0 };
 }
