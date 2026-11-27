@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { generatePrivateKey } from "viem/accounts";
 import { mkdtempSync, copyFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -12,6 +13,7 @@ const seeded = () => {
 };
 
 describe("ledger anchors", () => {
+  beforeAll(() => { process.env.MEMO_SIGNER_KEY ||= generatePrivateKey(); });
   it("roots are order independent", () => {
     expect(batchRoot(["b", "a"])).toBe(batchRoot(["a", "b"]));
   });
