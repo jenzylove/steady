@@ -21,7 +21,7 @@ const FAQ = [
   { q: "Does Steady hold my keys or my money?", a: "No. Steady only reads public chain data. When it prepares a fix, the transaction goes to Phantom and nothing happens unless you approve it there." },
   { q: "Do I need to connect a wallet to look?", a: "No. Paste any address and Steady reads it. You connect Phantom only when you want to sign a fix for your own wallet." },
   { q: "What is Telegraph, and why ask miners at all?", a: "Telegraph is a network where independent miners sell answers to questions, each with a receipt. Steady reads balances, loans and pools from the chain itself. It pays miners for what the chain cannot know, like protocol news and sanctions lists. For a lending rate it asks several miners and drops any answer far from the public rate, so a single wrong answer cannot steer you." },
-  { q: "What happens when a miner is wrong?", a: "The answer is struck out and kept as evidence with the reason. In our own paid tests one miner said marginfi pays 330% on USDC, and one said $3.5M for an Orca pool holding about $17.9M. Neither would have moved a cent." },
+  { q: "What happens when a miner is wrong?", a: "The answer is struck out and kept as evidence with the reason. In our own paid tests one miner said marginfi pays 330% on USDC, and one said $3.5M for an Orca pool that holds about $18M. Neither would have moved a cent." },
   { q: "How do I know the numbers are right?", a: "Steady's health number matched Kamino's own within 0.5% on 14 real loans, and marginfi's within 0.41% on 12. Every recommendation also comes as a signed memo listing each read and each miner answer, so you can check it yourself." },
   { q: "Does Steady keep working after I close the tab?", a: "Yes, if you want it to. Tap Watch this wallet after a read and the Steady Telegram bot rereads it every 15 minutes. It messages you only when a risk is new or gets worse, with the fix ready to sign. The numbers at the top of this page are live counts of that work." },
   { q: "What does it cost?", a: "Checking a wallet is free, up to 20 checks a day. Steady pays the miners. Payments to Telegraph run on its testnet until Telegraph mainnet; every read of your wallet is real Solana mainnet." },
@@ -77,7 +77,7 @@ export default function Home() {
             </Reveal>
             <Reveal className="trio-i" delay={240}>
               <span className="num-xl"><span className="strike">$3.5M</span></span>
-              <p className="ink2">What one miner said an Orca SOL/USDC pool holds. The chain says about $17.9M.</p>
+              <p className="ink2">What one miner said an Orca SOL/USDC pool holds. Read again on Nov 27, the chain says about $18M.</p>
             </Reveal>
           </div>
           <Reveal className="ledger-wrap">

@@ -209,7 +209,7 @@ export default function ProofPage() {
           <span className="kicker">A pool&apos;s depth</span>
           <div className="versus">
             <div><span className="mute" style={{ fontSize: 14 }}>One miner said</span><p className="num-xl"><span className="strike">$3.5M</span></p><p className="ink2">for the Orca SOL/USDC pool. Plan an exit on that and you misjudge how much you can sell.</p></div>
-            <div><span className="mute" style={{ fontSize: 14 }}>The chain says</span><p className="num-xl vial-text">$17.9M</p><p className="ink2">read from the pool&apos;s own vaults, within 0.01% of Orca&apos;s own figure. Steady&apos;s <Link href="/miner" className="linkbtn">miner</Link> answers this for anyone.</p></div>
+            <div><span className="mute" style={{ fontSize: 14 }}>The chain says, read Nov 27</span><p className="num-xl vial-text">$18M</p><p className="ink2">read from the pool&apos;s own vaults, within 0.01% of Orca&apos;s own figure. Steady&apos;s <Link href="/miner" className="linkbtn">miner</Link> answers this for anyone.</p></div>
           </div>
         </div>
       </section>

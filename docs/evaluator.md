@@ -28,7 +28,7 @@ curl -s "https://devnode.telegraphprotocol.com/api/evalpool/submissions/mine?sub
 Every prompt carries its timestamp, so the answer stays checkable later. Every row links the Solscan account or the exact quote it came from, so the node reports its provenance class as attested.
 
 **The worse answer is a failure we saw, not a strawman.** Five kinds:
-- **Real paid answer:** a paid miner answered $3,500,000 for the Orca SOL/USDC pool `Czfq3x…u44zE` on Nov 25 2026. The chain shows that pool holds about $18,000,000.
+- **Real paid answer:** a paid miner answered $3,500,000 for the Orca SOL/USDC pool `Czfq3x…u44zE` on Nov 25 2026. Read from the chain on Nov 27 2026, that pool holds about $18M.
 - **Wrong scale:** off by a factor, or a decimals slip (amounts 1,000 times too large, or lamports reported as SOL).
 - **Wrong chain:** the address is looked up on Ethereum or Base and reported as empty.
 - **TVL read as depth:** a DEX wide TVL given for one pool, or "no meaningful slippage" for a 5,000 SOL sell that actually moves Raydium by about 4.9%.

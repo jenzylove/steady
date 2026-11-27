@@ -65,7 +65,7 @@ On Oct 10 2025 about $19B of leveraged positions were wiped out in hours, $1.7B 
 | Claim | How it is checked |
 |---|---|
 | Loan health matches the protocol | Kamino and marginfi readers compared with each protocol's own numbers, recorded fixtures in [src/engine/__fixtures__](src/engine/__fixtures__) |
-| A single miner answer is not safe to act on | A paid miner answered $3,500,000 for Orca SOL/USDC (`Czfq3x…u44zE`) on Nov 25 2026. The vaults hold about $18,000,000. Steady's own miner reads the vaults. |
+| A single miner answer is not safe to act on | A paid miner answered $3,500,000 for Orca SOL/USDC (`Czfq3x…u44zE`) on Nov 25 2026. Read on Nov 27 2026, the vaults hold about $18M. Steady's own miner reads the vaults. |
 | Calls are made before the outcome | 23 signed predictions made Nov 26 2026 09:41 UTC, settling Nov 27 and Nov 29 from chain reads, each next to a blind frontier model answer ([/proof](https://steady.jdollar.site/proof), `GET /ledger`) |
 | Fixes would land | Every prepared transaction is simulated on mainnet before you see it |
 | Takeovers are caught | Unit tests on real instruction bytes ([src/presign/check.test.ts](src/presign/check.test.ts)) and a live probe ([scripts/probe-audit.ts](scripts/probe-audit.ts)) |

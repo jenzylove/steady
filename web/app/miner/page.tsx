@@ -114,7 +114,7 @@ export default function MinerPage() {
       <section className="case" style={{ marginTop: 72 }}>
         <span className="kicker">Why this miner exists</span>
         <div className="versus">
-          <div><span className="mute" style={{ fontSize: 14 }}>A paid Telegraph miner answered, Nov 25 2026</span><p className="num-xl"><span className="strike">$3.5M</span></p><p className="ink2">for Orca SOL/USDC (<span className="mono">{short("Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE", 5, 5)}</span>). At the time the chain showed about $16M to $18M. An app planning an exit on that number misjudges how much it can sell by five times.</p></div>
+          <div><span className="mute" style={{ fontSize: 14 }}>A paid Telegraph miner answered, Nov 25 2026</span><p className="num-xl"><span className="strike">$3.5M</span></p><p className="ink2">for Orca SOL/USDC (<span className="mono">{short("Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE", 5, 5)}</span>). Read again on Nov 27 2026, the pool holds about $18M. An app planning an exit on that number misjudges how much it can sell by five times.</p></div>
           <div><span className="mute" style={{ fontSize: 14 }}>Steady&apos;s miner, right now</span><p className="num-xl vial-text">{orcaUsd != null ? usd(orcaUsd) : "…"}</p><p className="ink2">read from that pool&apos;s own vaults {orca?.status === 200 ? ago((orca.body as Answer).fetched_at, now) : ""}. On Nov 26 2026 it matched each DEX&apos;s own figure within 0.12% (table below).</p></div>
         </div>
       </section>
