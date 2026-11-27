@@ -16,7 +16,7 @@ Steady reads everything a wallet holds from mainnet, buys the facts the chain ca
 <p align="center">
 <img alt="Telegraph Season II" src="https://img.shields.io/badge/Telegraph-Season%20II-c6f432">
 <img alt="Solana mainnet reads" src="https://img.shields.io/badge/Solana-mainnet%20reads-14F195">
-<img alt="tests" src="https://img.shields.io/badge/tests-84%20passing-informational">
+<img alt="tests" src="https://img.shields.io/badge/tests-113%20passing-informational">
 <img alt="license" src="https://img.shields.io/badge/license-MIT-lightgrey">
 </p>
 
@@ -78,7 +78,7 @@ Requires Node 22+, a Helius key, and an EVM key holding a little Base Sepolia te
 git clone https://github.com/jenzylove/steady && cd steady
 npm install          # on Windows add --force (one optional dependency is Linux only)
 cp .env.example .env # fill HELIUS_API_KEY, TELEGRAPH_PAYER_KEY, MEMO_SIGNER_KEY
-npm test             # 84 tests, live tests skipped
+npm test             # 113 tests, live tests skipped
 npm run api          # http://localhost:8788
 ```
 
