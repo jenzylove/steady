@@ -107,8 +107,15 @@ function walletBalance(positions: Position[], mint: string): number {
   return positions.filter((p) => p.kind === "token" && p.mint === mint).reduce((s, p) => s + p.amount, 0);
 }
 
-async function jupQuote(ctx: AdapterContext, inputMint: string, outputMint: string, amount: string, maxAccounts: number, direct: boolean, slippageBps = 50) {
-  const q = (await (await ctx.fetch(`${JUP}/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${slippageBps}&maxAccounts=${maxAccounts}${direct ? "&onlyDirectRoutes=true" : ""}`)).json()) as { inAmount?: string; outAmount?: string; error?: string };
+/**
+ * Venues whose swap accounts do not depend on the current price. A rescue signed today runs days later at another price,
+ * and tick or bin based pools (Whirlpool, Raydium CLMM, Meteora DLMM) need the tick arrays around the price at signing,
+ * so a signed route through them goes stale once the price moves (seen live: Orca InvalidTickArraySequence after ~1h).
+ */
+export const RESCUE_DEXES = ["Raydium", "Raydium CP", "Meteora", "Meteora DAMM v2", "Orca V1", "Orca V2", "Perps", "Saber", "Stableswap", "Sanctum", "Sanctum Infinity", "Phoenix", "OpenBook V2", "Manifest", "SolFi", "SolFi V2", "HumidiFi", "Obric V2", "ZeroFi", "TesseraV", "Woofi", "GoonFi V2"];
+
+async function jupQuote(ctx: AdapterContext, inputMint: string, outputMint: string, amount: string, maxAccounts: number, direct: boolean, slippageBps = 50, dexes?: string[]) {
+  const q = (await (await ctx.fetch(`${JUP}/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${slippageBps}&maxAccounts=${maxAccounts}${direct ? "&onlyDirectRoutes=true" : ""}${dexes ? `&dexes=${encodeURIComponent(dexes.join(","))}` : ""}`)).json()) as { inAmount?: string; outAmount?: string; error?: string };
   if (!q.outAmount || !q.inAmount) throw new Error(`Jupiter quote failed: ${q.error ?? "no route"}`);
   return q as { inAmount: string; outAmount: string };
 }
@@ -146,7 +153,7 @@ export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligatio
   // Shorter Jupiter routes on each retry until the whole transaction fits in one Solana transaction.
   let cap = (klend: Address[]) => Math.max(20, 60 - klend.length), direct = false;
   const quote = async (inputs: { inputAmountLamports: Decimal; inputMint: Address; outputMint: Address }, klend: Address[]) =>
-    jupQuote(ctx, inputs.inputMint, inputs.outputMint, inputs.inputAmountLamports.floor().toString(), cap(klend), direct, slipBps);
+    jupQuote(ctx, inputs.inputMint, inputs.outputMint, inputs.inputAmountLamports.floor().toString(), cap(klend), direct, slipBps, opts.nonce || drop > 0 ? RESCUE_DEXES : undefined);
   // priceAInB is whole token B per whole token A, so scale the raw Jupiter amounts by each mint's decimals.
   const collReserve = market.getReserveByAddress(address(coll.extra!.reserve as string));
   const dec = new Map<string, number>([[reserve.getLiquidityMint(), reserve.stats.decimals], ...(collReserve ? [[collReserve.getLiquidityMint(), collReserve.stats.decimals] as [string, number]] : [])]);
@@ -167,7 +174,7 @@ export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligatio
     const tables = await fetchAllAddressLookupTable(rpc as never, (r.addressLookupTableAddresses ?? []).map((a) => address(a)));
     return [{ preActionIxs: (r.setupInstructions ?? []).map(toIx), swapIxs: [toIx(r.swapInstruction)], lookupTables: tables, quote: { priceAInB: price(q, inputs.inputMint, inputs.outputMint), quoteResponse: q } }];
   };
-  const tries: [(k: Address[]) => number, boolean][] = [[(k) => Math.max(20, 60 - k.length), false], [() => 24, false], [() => 16, false], [() => 16, true], [() => 12, false], [() => 10, true]];
+  const tries: [(k: Address[]) => number, boolean][] = [[(k) => Math.max(20, 60 - k.length), false], [() => 40, false], [() => 32, false], [() => 28, false], [() => 24, false], [() => 20, false], [() => 16, false], [() => 16, true], [() => 12, false], [() => 10, true]];
   let built: { tx: string; sell: string } | undefined, lastErr = "no swap route from collateral to debt";
   for (const [c, d] of tries) {
     cap = c; direct = d;
@@ -182,7 +189,7 @@ export async function kaminoRepay(ctx: AdapterContext, wallet: string, obligatio
       const sell = best.swapInputs.inputAmountLamports.div(new Decimal(10).pow(collReserve?.stats.decimals ?? 6)).toDecimalPlaces(4).toString();
       built = { tx: await compile(ctx, wallet, best.ixs, luts, best.lookupTables, opts.nonce), sell };
       break;
-    } catch (e) { lastErr = String((e as Error).message ?? e).slice(0, 200); if (!/byte limit|no route|Jupiter/.test(lastErr)) break; }
+    } catch (e) { lastErr = String((e as Error).message ?? e).slice(0, 200); if (process.env.RESCUE_DEBUG) console.log("try", cap([]), direct, lastErr.slice(0, 80)); if (!/byte limit|no route|Jupiter/.test(lastErr)) break; }
   }
   if (!built) return { route: "repay-with-collateral", unsupported: lastErr };
   const { tx, sell } = built;
