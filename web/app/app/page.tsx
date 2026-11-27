@@ -101,7 +101,7 @@ function Result({ advice, memo }: { advice: Advice; memo: Signed<Advice> }) {
           <h1 className="display r-head">{headline}{opps ? <span className="vial-text"> {opps} way{opps === 1 ? "" : "s"} to earn more.</span> : null}</h1>
         </div>
         <div className="r-total">
-          <span className="kicker">Everything Steady could price</span>
+          <span className="kicker">Net worth after debt</span>
           <span className="num-xl">{usd(advice.totalUsd, 2)}</span>
           <span className="mute" style={{ fontSize: 13 }}>{advice.costUsd > 0 ? `${usd(advice.costUsd, 2)} spent on Telegraph answers for this check${advice.reusedAnswers ? `, plus ${advice.reusedAnswers} reused` : ""}` : advice.reusedAnswers ? `${advice.reusedAnswers} Telegraph answer${advice.reusedAnswers === 1 ? "" : "s"} bought earlier and reused for up to 3 hours, ${(advice.checks ?? []).filter((c) => c.used).length} judged usable` : "No Telegraph answers were needed for this check"}</span>
         </div>

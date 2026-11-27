@@ -52,7 +52,7 @@ export function verifiedLine(a: Advice): string {
 
 export function formatReport(a: Advice, opts: { max?: number } = {}): string {
   const max = opts.max ?? MAX_LEN;
-  const head = `<b>Steady</b> · <code>${esc(shortAddr(a.wallet))}</code>\nTotal value: <b>${fmtUsd(a.totalUsd)}</b>`;
+  const head = `<b>Steady</b> · <code>${esc(shortAddr(a.wallet))}</code>\nNet worth after debt: <b>${fmtUsd(a.totalUsd)}</b>`;
   const foot = verifiedLine(a);
   const sorted = sortFindings(a.findings);
   const parts = [head];

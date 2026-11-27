@@ -41,6 +41,7 @@ const LABELS: Record<string, string> = {
   protocol: "Protocol",
   sharePct: "Share of wallet",
   usd: "Value",
+  totalUsd: "All holdings before debt",
 };
 export const label = (k: string) => LABELS[k] ?? sentence(k.replace(/([A-Z])/g, " $1").toLowerCase());
 
