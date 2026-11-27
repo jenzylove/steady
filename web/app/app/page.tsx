@@ -110,13 +110,13 @@ function Result({ advice, memo }: { advice: Advice; memo: Signed<Advice> }) {
         </div>
       </div>
 
-      <WatchCta wallet={advice.wallet} />
-
       {sorted.length ? (
         <ol className="findings">{sorted.map((f, k) => <FindingRow key={f.id} f={f} wallet={advice.wallet} idx={k} memo={memo} />)}</ol>
       ) : (
         <p className="big ink2" style={{ padding: "40px 0", borderTop: "1px solid var(--line)" }}>Steady found no loans near liquidation, no risky delegations, no depegs and no idle stablecoins worth moving. Nothing to fix.</p>
       )}
+
+      <WatchCta wallet={advice.wallet} />
 
       <div className="r-more">
         {checks.length > 0 && (
