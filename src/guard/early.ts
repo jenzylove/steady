@@ -1,5 +1,5 @@
 // Early fire: when a guarded loan is near its line, Steady buys the market price of each leg from independent
-// Telegraph price miners (CRYPTO_PRICE_USD, three miners, they must agree within 1%) and recomputes health at those
+// Telegraph price miners (CRYPTO_PRICE_USD, three miners, all three must agree within 1%) and recomputes health at those
 // prices. If the market already puts the loan at the line, the guard fires now instead of waiting for the oracle and
 // the next check. Every decision keeps the miners' signal hashes, so anyone can see which answers moved it.
 import type { LoanAccount, LoanLeg } from "../engine/types.js";
@@ -28,7 +28,7 @@ export const askPrice: PriceAsk = (symbol) =>
     extract: (r) => { const v = (r as { price_usd?: unknown }).price_usd; return typeof v === "number" ? v : typeof v === "string" ? Number(v) : undefined; },
     valid: (v) => (Number.isFinite(v) && v > 0 ? undefined : "not a price"),
     same: (a, b) => Math.abs(a - b) / Math.max(a, b) < 0.01,
-    need: 2,
+    need: 3, // all three miners must agree before a price can fire a rescue early
   });
 
 const oraclePrice = (l: LoanLeg) => (l.amount > 0 ? l.usd / l.amount : 0);

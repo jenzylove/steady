@@ -153,7 +153,7 @@ export default function GuardCard({ wallet, obligation, health, collateral }: { 
 
   const covered = COVERED.has(collateral.toUpperCase());
   const coverageNote = covered
-    ? `Early fire is on: Telegraph's price miners quote ${collateral}. When the miners agree the market price already puts the loan at your line, Steady sends the rescue sooner.`
+    ? `Early fire is on: Telegraph's price miners quote ${collateral}. When all three price miners agree the market price already puts the loan at your line, Steady sends the rescue sooner.`
     : `Early fire is off for ${collateral}: Telegraph's price miners do not quote it yet. The guard still fires at your line.`;
 
   const connectNote = !isOwner ? (
