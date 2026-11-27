@@ -95,7 +95,7 @@ curl -s -X POST localhost:8788/advise -H 'content-type: application/json' \
 npx tsx scripts/probe-audit.ts http://localhost:8788
 ```
 
-Error cases: a non Solana address returns 400; more than the free daily runs returns 429; a pool the miner does not support returns 400 `unsupported_pool`; a chain other than Solana returns 400 `unsupported_chain`.
+Error cases: a non Solana address returns 400; more than the free daily runs returns 429; the miner returns 404 `unknown_pool` for a pool name it does not know and 400 `unsupported_pool` for an address that is not an Orca, Raydium or Meteora pool; a chain other than Solana returns 400 `unsupported_chain`.
 
 The web app is in [web/](web/) (`cd web && npm install && npm run dev`, set `NEXT_PUBLIC_API_URL`). The miner runs with `npm run miner`, the bot with `npm run bot`.
 
